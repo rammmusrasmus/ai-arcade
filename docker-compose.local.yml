@@ -1,0 +1,26 @@
+# HTTP-only, no domain, no TLS — for a quick smoke test before DNS is ready.
+#
+#   docker compose -f docker-compose.local.yml up -d --build
+#   curl http://SERVER_IP:4000/health
+#
+# Set at least AUTH_SECRET and ADMIN_EMAILS in .env. Do NOT expose this to the
+# public internet long-term — password auth needs HTTPS. Switch to
+# docker-compose.yml (Caddy + your domain) for the real thing.
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: "4000"
+      # so play/relay URLs in responses are usable on the LAN
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:4000}
+      PUBLIC_WS_URL: ${PUBLIC_WS_URL:-ws://localhost:4000/mp}
+      DEV_LOGIN_ENABLED: "false"
+      CORS_ORIGINS: "*"
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./data:/data

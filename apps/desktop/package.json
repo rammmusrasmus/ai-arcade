@@ -1,0 +1,91 @@
+{
+  "name": "@ai-arcade/desktop",
+  "version": "0.1.5",
+  "private": true,
+  "description": "AI Arcade desktop client — browse, install, and launch AI games.",
+  "author": "AI Arcade",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "pack": "electron-vite build && electron-builder --dir",
+    "dist": "electron-vite build && electron-builder"
+  },
+  "dependencies": {
+    "@ai-arcade/shared": "*",
+    "adm-zip": "^0.5.16",
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "@types/adm-zip": "^0.5.7",
+    "@types/react": "^18.3.17",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "33.4.11",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11"
+  },
+  "build": {
+    "appId": "com.aiarcade.desktop",
+    "productName": "AI Arcade",
+    "electronVersion": "33.4.11",
+    "npmRebuild": false,
+    "asar": true,
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "out/main/index.js"
+    },
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://update-feed.invalid/updates",
+        "channel": "latest"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "AI-Arcade-Setup-${version}.${ext}",
+      "differentialPackage": true
+    },
+    "portable": {
+      "artifactName": "AI-Arcade-${version}-portable.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Game"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.games"
+    }
+  }
+}

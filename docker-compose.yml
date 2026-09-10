@@ -1,0 +1,42 @@
+# AI Arcade — production stack for a single Linux server.
+#
+#   1. point a DNS A record at this server (e.g. games.example.com)
+#   2. cp .env.production.example .env  and fill it in
+#   3. docker compose up -d --build
+#
+# Caddy gets a real HTTPS certificate automatically from Let's Encrypt.
+# WebSockets (the multiplayer relay at /mp) pass through the proxy untouched.
+
+services:
+  app:
+    build: .
+    # After the GitHub Actions image build is set up you can swap the line above for:
+    # image: ghcr.io/OWNER/REPO:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: "4000"
+    volumes:
+      # bind-mount so backups + the CI update-feed upload can reach ./data/storage/public
+      - ./data:/data
+    expose:
+      - "4000"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [app]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  caddy-data:
+  caddy-config:

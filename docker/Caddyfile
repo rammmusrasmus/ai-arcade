@@ -1,0 +1,16 @@
+# Terminates HTTPS for AI Arcade and proxies everything (including the
+# /mp WebSocket relay) to the app container.
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# large uploads: game bundles up to 50 MB (+ headroom)
+	request_body {
+		max_size 80MB
+	}
+
+	reverse_proxy app:4000 {
+		# don't buffer the relay / downloads
+		flush_interval -1
+	}
+}

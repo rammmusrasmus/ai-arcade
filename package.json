@@ -1,0 +1,35 @@
+{
+  "name": "ai-arcade",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Steam-like platform for free, AI-made games. Open submissions, moderation, web + desktop clients.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build:shared": "npm run build --workspace @ai-arcade/shared",
+    "dev": "npm run build:shared && concurrently -n api,web -c blue,green \"npm run dev --workspace @ai-arcade/api\" \"npm run dev --workspace @ai-arcade/web\"",
+    "dev:api": "npm run build:shared && npm run dev --workspace @ai-arcade/api",
+    "dev:web": "npm run build:shared && npm run dev --workspace @ai-arcade/web",
+    "dev:desktop": "npm run build:shared && npm run dev --workspace @ai-arcade/desktop",
+    "db:migrate": "npm run db:migrate --workspace @ai-arcade/api",
+    "db:seed": "npm run db:seed --workspace @ai-arcade/api",
+    "db:seed:demo": "npm run db:seed:demo --workspace @ai-arcade/api",
+    "db:reset": "npm run db:reset --workspace @ai-arcade/api",
+    "setup": "npm install && npm run build:shared && npm run db:migrate && npm run db:seed",
+    "share": "node scripts/share.mjs",
+    "pack:desktop": "node scripts/pack-desktop.mjs",
+    "publish:game": "node scripts/publish-game.mjs",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

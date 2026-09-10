@@ -1,0 +1,30 @@
+# deps & build output
+node_modules/
+dist/
+build/
+out/
+.turbo/
+*.tsbuildinfo
+
+# local data & secrets (never commit these)
+.env
+.env.local
+.env.*.local
+/data/
+apps/api/data/
+apps/api/*.db
+apps/api/*.db-*
+
+# packaged desktop apps
+apps/desktop/release/
+release/
+
+# logs / coverage
+*.log
+coverage/
+
+# editor / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

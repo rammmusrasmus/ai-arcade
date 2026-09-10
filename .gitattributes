@@ -1,0 +1,25 @@
+# Normalise line endings so the repo is identical on every OS.
+* text=auto eol=lf
+
+# Shell scripts MUST be LF — CRLF breaks them inside the Docker container.
+*.sh   text eol=lf
+Dockerfile text eol=lf
+docker/entrypoint.sh text eol=lf
+
+# Windows-only scripts keep CRLF.
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.ps1  text eol=crlf
+
+# Binaries — never touch.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.ico  binary
+*.woff  binary
+*.woff2 binary
+*.zip  binary
+*.exe  binary
+*.dmg  binary

@@ -1,0 +1,1 @@
+ALTER TABLE `game_versions` ADD `external_refs` text DEFAULT '[]' NOT NULL;

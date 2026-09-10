@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0a0b12;
+  --color-surface: #12141f;
+  --color-surface-2: #1a1d2b;
+  --color-border: #262a3d;
+  --color-accent: #7c6cff;
+  --color-accent-2: #22d3ee;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html {
+  color-scheme: dark;
+  background: var(--color-bg);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(60rem 40rem at 80% -10%, rgba(124, 108, 255, 0.12), transparent 60%),
+    radial-gradient(50rem 30rem at -10% 10%, rgba(34, 211, 238, 0.1), transparent 55%),
+    var(--color-bg);
+  color: #e7e9f3;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.9rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.6rem;
+  padding: 0.5rem 0.95rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  color: #e7e9f3;
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.05s, background 0.15s;
+}
+.btn:hover { filter: brightness(1.15); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--color-accent), #5b8cff);
+  border-color: transparent;
+  color: white;
+}
+.btn-ghost { background: transparent; }
+.btn-danger { background: #3a1721; border-color: #6b2434; color: #ffb3c0; }
+
+.input,
+.textarea,
+.select {
+  width: 100%;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 0.55rem;
+  padding: 0.55rem 0.7rem;
+  color: #e7e9f3;
+  font: inherit;
+  outline: none;
+}
+.input:focus,
+.textarea:focus,
+.select:focus {
+  border-color: var(--color-accent);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  color: #b9bed6;
+}
+
+a { color: inherit; }
