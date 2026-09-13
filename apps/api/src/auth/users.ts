@@ -3,7 +3,7 @@ import { db } from "../db/index.js";
 import { users, type UserRow } from "../db/schema.js";
 import { normalizeDisplayName } from "../lib/displayName.js";
 import { id } from "../lib/ids.js";
-import { roleForEmail } from "./index.js";
+import { assertSignupAllowed, roleForEmail } from "./index.js";
 
 /**
  * Finds a free display name starting from `base`, appending "2", "3", ...
@@ -57,6 +57,7 @@ export async function upsertUser(input: UpsertUserInput): Promise<UserRow> {
     return existing;
   }
 
+  assertSignupAllowed(email);
   const now = Date.now();
   const unique = await uniqueDisplayName(input.displayName || email.split("@")[0]!);
   const row: UserRow = {

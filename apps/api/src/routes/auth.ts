@@ -12,6 +12,7 @@ import {
   VerifyLoginInput,
 } from "@ai-arcade/shared";
 import {
+  assertSignupAllowed,
   clearSessionCookie,
   createSession,
   destroySession,
@@ -91,6 +92,7 @@ export async function authRoutes(app: FastifyInstance) {
       async (req, reply) => {
         const input = RegisterInput.parse(req.body);
         const email = normEmail(input.email);
+        assertSignupAllowed(email);
         if (email === input.password.toLowerCase()) {
           throw badRequest("Password must not be your email address");
         }

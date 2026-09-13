@@ -70,6 +70,9 @@ const EnvSchema = z.object({
   DEV_LOGIN_ENABLED: bool(false),
   PASSWORD_AUTH_ENABLED: bool(true),
   ADMIN_EMAILS: z.string().optional().default(""),
+  // Comma-separated emails allowed to create an account. Empty = anyone can sign up.
+  // ADMIN_EMAILS are always allowed. Existing accounts are never affected.
+  SIGNUP_ALLOWED_EMAILS: z.string().optional().default(""),
 
   // Outgoing mail for the mandatory "confirm it's you" login code. Leave
   // SMTP_HOST blank in development — codes are logged to the server console
@@ -116,6 +119,11 @@ export const env = {
   webOrigins: raw.WEB_ORIGIN.split(",").map((s) => s.trim()).filter(Boolean),
   adminEmails: new Set(
     raw.ADMIN_EMAILS.split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
+  ),
+  signupAllowedEmails: new Set(
+    raw.SIGNUP_ALLOWED_EMAILS.split(",")
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean),
   ),

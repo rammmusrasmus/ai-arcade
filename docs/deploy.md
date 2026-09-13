@@ -91,7 +91,9 @@ so the Caddy compose stack above isn't needed.
 - **Branch:** `main`.
 - **Persistent volume:** mount one at `/data` (SQLite DB + uploads). Run **one** replica.
 - **Env vars:** `AUTH_SECRET` (32+ chars), `PUBLIC_API_URL` and `WEB_ORIGIN` (both the public
-  `https://` URL) are required; set `ADMIN_EMAILS`, `CORS_ORIGINS=*` and `SMTP_*` too.
+  `https://` URL) are required; set `ADMIN_EMAILS`, `CORS_ORIGINS=*` and `SMTP_*` too. Set
+  `SIGNUP_ALLOWED_EMAILS` to limit who can create an account (empty = open signup). Don't set
+  `DATABASE_URL` / `STORAGE_DIR` — the image already points them at `/data`.
 - **WebSockets:** `/mp` holds long-lived connections — no short idle timeouts on it.
 - **Uploads:** allow request bodies of ~80 MB (game bundles are up to 50 MB).
 

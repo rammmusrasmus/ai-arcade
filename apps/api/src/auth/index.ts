@@ -96,6 +96,19 @@ export function requireRole(req: FastifyRequest, min: UserRow["role"]): UserRow 
   return user;
 }
 
+/**
+ * Throws a generic error if SIGNUP_ALLOWED_EMAILS is set and this address isn't on it.
+ * Call before anything else in account creation, so a rejected address learns nothing
+ * about existing accounts or the list itself.
+ */
+export function assertSignupAllowed(email: string): void {
+  const allowed = env.signupAllowedEmails;
+  if (allowed.size === 0) return;
+  const e = email.trim().toLowerCase();
+  if (allowed.has(e) || env.adminEmails.has(e)) return;
+  throw forbidden("Registration is closed.");
+}
+
 /** Resolve the role a user should have on login, honoring ADMIN_EMAILS. */
 export function roleForEmail(email: string, current?: UserRow["role"]): UserRow["role"] {
   if (env.adminEmails.has(email.toLowerCase())) return "admin";

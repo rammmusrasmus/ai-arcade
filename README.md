@@ -99,14 +99,25 @@ The packaged app talks to `http://127.0.0.1:4000` by default. In-app, **🌐 Ser
 
 Everything is in `.env` at the repo root (copied from `.env.example`). Key settings:
 
+The full list is read in `apps/api/src/env.ts`. The API exits at boot if `AUTH_SECRET` is
+missing or shorter than 32 chars, or a value has the wrong type. Everything else has a
+default — including `PUBLIC_API_URL` and `WEB_ORIGIN`, which silently fall back to localhost.
+
 | Var | Meaning |
 | --- | --- |
+| `AUTH_SECRET` | **Required**, 32+ chars. Signs session cookies and OAuth state. |
+| `PUBLIC_API_URL` | Public URL of the API. Used for game/image file URLs, the advertised multiplayer URL and the GitHub callback. Default `http://127.0.0.1:4000`. |
+| `WEB_ORIGIN` | Public URL of the web app (the API itself when deployed). Used for password-reset links, CORS and OAuth redirects. Default `http://127.0.0.1:5173`. |
+| `CORS_ORIGINS` | Extra allowed origins, or `*`. Set `*` when deployed — installed desktop apps load from local files, so their requests don't come from `WEB_ORIGIN`. |
+| `PASSWORD_AUTH_ENABLED` | Email + password sign-in (default on). Every register and login needs a 6-digit code sent by email. This is the only sign-in the desktop app supports. |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | Sends those codes. Without `SMTP_HOST` the code is only printed to the server log, so nobody else can sign in. |
+| `SIGNUP_ALLOWED_EMAILS` | Comma-separated emails allowed to **create** an account; everyone else gets "Registration is closed." Empty = open signup. `ADMIN_EMAILS` are always allowed; existing accounts are unaffected. |
 | `ADMIN_EMAILS` | Comma-separated emails that get the `admin` role on login. |
-| `DEV_LOGIN_ENABLED` | Passwordless email login. **Local only — never enable in production.** |
-| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Enables "Continue with GitHub". Callback URL: `<PUBLIC_API_URL>/auth/github/callback`. |
-| `MAX_BUNDLE_BYTES` / `MAX_UNZIPPED_BYTES` / `MAX_BUNDLE_FILES` | Upload limits (default 50 MB / 200 MB / 2000 files). |
-| `DATABASE_URL` | `file:./data/ai-arcade.db` by default. A libSQL/Turso URL works too. |
-| `STORAGE_DIR` | Where uploaded bundles + extracted games + images live. |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Optional "Continue with GitHub" (web only). Callback: `<PUBLIC_API_URL>/auth/github/callback`. |
+| `DEV_LOGIN_ENABLED` | Passwordless login for local testing. **Never enable in production** (it also returns 404 when `NODE_ENV=production`). |
+| `MAX_BUNDLE_BYTES` / `MAX_UNZIPPED_BYTES` / `MAX_BUNDLE_FILES` | Per-upload limits (default 50 MB / 200 MB / 2000 files). There is no total storage cap. |
+| `DATABASE_URL` | `file:./data/ai-arcade.db` by default. The Docker image sets `file:/data/ai-arcade.db`. |
+| `STORAGE_DIR` | Uploaded bundles, extracted games and images. The Docker image sets `/data/storage`. |
 
 ## How a submission works
 
@@ -190,13 +201,28 @@ Games are handed the relay URL as `?arcade_mp=<wsUrl>` on their URL and via a `p
 
 ## Security notes (before you deploy this for real)
 
-- Serve game bundles from a **separate origin/subdomain** (e.g. `games.example.com`) in
-  production for defense-in-depth, in addition to the sandbox headers.
-- Swap `DEV_LOGIN_ENABLED` off and configure GitHub OAuth (or another real provider).
-- The local-filesystem storage driver is fine for one box; move to S3-compatible object
-  storage + a CDN for scale (the `Storage` interface in `apps/api/src/storage` is the seam).
-- Add virus/lint scanning of uploads, rate limiting, and a report/takedown flow.
-- Consider Postgres instead of SQLite once you have real traffic.
+What's in place:
+
+- Passwords are scrypt-hashed; session, login-code and reset tokens are stored only as SHA-256
+  hashes. Every password sign-in needs an emailed code.
+- In-memory rate limits (per account, else per IP) on auth, game creation (30/h), bundle
+  uploads (40/h), image uploads (80/h), friend requests and messages. They reset on restart,
+  and in production the API trusts `X-Forwarded-For` — only expose it behind your proxy.
+- Moderators/admins can unpublish a live game.
+- `SIGNUP_ALLOWED_EMAILS` limits who can create an account.
+
+Still open — know these before letting strangers sign up:
+
+- **Uploads are served before approval.** A bundle is extracted and reachable at
+  `/files/games/<gameId>/<versionId>/…` on the API's own domain as soon as it's uploaded;
+  moderation only controls store visibility. IDs are unguessable, but the uploader has the
+  link. Game documents get `Content-Security-Policy: sandbox`, but a **separate origin** for
+  game files would be stronger. Use `SIGNUP_ALLOWED_EMAILS` unless signup is meant to be open.
+- **No aggregate storage cap and no cleanup.** Original zips, rejected/superseded versions and
+  images are never deleted. Cap the volume at the infrastructure layer.
+- No virus scanning of uploads, and no user report flow.
+- Local-filesystem storage and SQLite are single-instance only; run one replica. Move to
+  S3-compatible storage / Postgres for scale (`apps/api/src/storage` is the seam).
 
 ## Scripts
 

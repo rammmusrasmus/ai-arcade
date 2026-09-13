@@ -90,10 +90,10 @@ export async function fetchGithubProfile(accessToken: string): Promise<GithubPro
       primary: boolean;
       verified: boolean;
     }[];
+    // Accounts are matched by email, so an unverified address would let someone sign in
+    // as whoever owns it (including an ADMIN_EMAILS account). Verified only.
     const best =
-      emails.find((e) => e.primary && e.verified) ??
-      emails.find((e) => e.verified) ??
-      emails[0];
+      emails.find((e) => e.primary && e.verified) ?? emails.find((e) => e.verified);
     if (best?.email) email = best.email;
   }
 
