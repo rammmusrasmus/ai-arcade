@@ -333,4 +333,49 @@ export type ApiError = z.infer<typeof ApiError>;
 export const SessionInfo = z.object({
   user: User.nullable(),
 });
+
+/* ------------------------------------------------------------------ */
+/* Friends + direct messages                                           */
+/* ------------------------------------------------------------------ */
+
+export const FriendRequestStatus = z.enum(["pending", "accepted"]);
+export type FriendRequestStatus = z.infer<typeof FriendRequestStatus>;
+
+/** A pending or accepted friendship, from the current user's point of view. */
+export const FriendRequest = z.object({
+  id: z.string(),
+  status: FriendRequestStatus,
+  /** True if the current user sent this request (vs. received it). */
+  outgoing: z.boolean(),
+  user: AuthorRef,
+  createdAt: z.string(),
+});
+export type FriendRequest = z.infer<typeof FriendRequest>;
+
+export const Friend = z.object({
+  user: AuthorRef,
+  friendsSince: z.string(),
+  unreadCount: z.number().int().nonnegative(),
+});
+export type Friend = z.infer<typeof Friend>;
+
+export const SendFriendRequestInput = z.object({
+  toUserId: z.string().min(1),
+});
+export type SendFriendRequestInput = z.infer<typeof SendFriendRequestInput>;
+
+export const Message = z.object({
+  id: z.string(),
+  senderId: z.string(),
+  recipientId: z.string(),
+  body: z.string(),
+  createdAt: z.string(),
+  readAt: z.string().nullable(),
+});
+export type Message = z.infer<typeof Message>;
+
+export const SendMessageInput = z.object({
+  body: z.string().trim().min(1).max(2000),
+});
+export type SendMessageInput = z.infer<typeof SendMessageInput>;
 export type SessionInfo = z.infer<typeof SessionInfo>;

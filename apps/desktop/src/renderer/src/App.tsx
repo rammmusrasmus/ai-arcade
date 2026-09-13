@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ApiClient, PlayType } from "@ai-arcade/shared";
-import type { Game, User } from "@ai-arcade/shared";
+import type { AuthorRef, Friend, FriendRequest, Game, Message, User } from "@ai-arcade/shared";
 import type { InstalledGame, PickedBundle, UpdateState } from "../../preload/index";
 import { errorMessage, makeApi, setToken } from "./api";
 
@@ -12,7 +12,7 @@ function b64ToBlob(b64: string, type = "application/zip"): Blob {
 }
 const splitList = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
 
-type Tab = "store" | "library" | "review";
+type Tab = "store" | "library" | "review" | "friends";
 
 export function App() {
   const [api, setApi] = useState<ApiClient | null>(null);
@@ -91,6 +91,32 @@ export function App() {
 
   const [uploadOpen, setUploadOpen] = useState(false);
 
+  // Badge on the Friends tab: unread messages + incoming friend requests.
+  const [friendBadge, setFriendBadge] = useState(0);
+  useEffect(() => {
+    if (!api || !user) {
+      setFriendBadge(0);
+      return;
+    }
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const [friends, requests] = await Promise.all([api.listFriends(), api.listFriendRequests()]);
+        if (cancelled) return;
+        const unread = friends.reduce((n, f) => n + f.unreadCount, 0);
+        setFriendBadge(unread + requests.incoming.length);
+      } catch {
+        /* transient — try again next tick */
+      }
+    };
+    void poll();
+    const t = setInterval(poll, 20_000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, [api, user]);
+
   if (!booted) {
     return <div className="empty">Connecting to {apiUrl || "the arcade"}…</div>;
   }
@@ -150,6 +176,14 @@ export function App() {
               Review
             </button>
           )}
+          {user && (
+            <button
+              className={`tab ${tab === "friends" ? "active" : ""}`}
+              onClick={() => setTab("friends")}
+            >
+              Friends {friendBadge > 0 && <span className="badge">{friendBadge}</span>}
+            </button>
+          )}
         </div>
         <div className="spacer" />
         <button
@@ -182,6 +216,12 @@ export function App() {
           <StoreView api={api} apiUrl={apiUrl} installed={installed} />
         ) : tab === "review" ? (
           <ReviewView api={api} apiUrl={apiUrl} />
+        ) : tab === "friends" ? (
+          user ? (
+            <FriendsView api={api} me={user} />
+          ) : (
+            <div className="empty">Sign in to see your friends.</div>
+          )
         ) : (
           <LibraryView library={library} latestVersions={latestVersions} />
         )}
@@ -914,6 +954,361 @@ function AccountControl({
           {error && <div className="error">{error}</div>}
         </div>
       )}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------- */
+
+function FriendsView({ api, me }: { api: ApiClient; me: User }) {
+  const [friends, setFriends] = useState<Friend[] | null>(null);
+  const [requests, setRequests] = useState<{ incoming: FriendRequest[]; outgoing: FriendRequest[] } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<AuthorRef | null>(null);
+
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<AuthorRef[]>([]);
+
+  const loadFriends = useCallback(async () => {
+    try {
+      setFriends(await api.listFriends());
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }, [api]);
+
+  const loadRequests = useCallback(async () => {
+    try {
+      setRequests(await api.listFriendRequests());
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }, [api]);
+
+  useEffect(() => {
+    void loadFriends();
+    void loadRequests();
+  }, [loadFriends, loadRequests]);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      void loadFriends();
+      void loadRequests();
+    }, 15_000);
+    return () => clearInterval(t);
+  }, [loadFriends, loadRequests]);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setResults([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      try {
+        setResults(await api.searchUsers(q));
+      } catch {
+        setResults([]);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query, api]);
+
+  const knownIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const f of friends ?? []) ids.add(f.user.id);
+    for (const r of requests?.incoming ?? []) ids.add(r.user.id);
+    for (const r of requests?.outgoing ?? []) ids.add(r.user.id);
+    return ids;
+  }, [friends, requests]);
+
+  const sendRequest = async (toUserId: string) => {
+    setBusyId(toUserId);
+    setError(null);
+    try {
+      await api.sendFriendRequest({ toUserId });
+      setQuery("");
+      setResults([]);
+      await Promise.all([loadFriends(), loadRequests()]);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const accept = async (id: string) => {
+    setBusyId(id);
+    setError(null);
+    try {
+      await api.acceptFriendRequest(id);
+      await Promise.all([loadFriends(), loadRequests()]);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const decline = async (id: string) => {
+    setBusyId(id);
+    setError(null);
+    try {
+      await api.declineFriendRequest(id);
+      await loadRequests();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const remove = async (userId: string) => {
+    setBusyId(userId);
+    setError(null);
+    try {
+      await api.removeFriend(userId);
+      if (selected?.id === userId) setSelected(null);
+      await loadFriends();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div style={{ display: "flex", gap: 16, height: "100%", minHeight: 0 }}>
+      <div style={{ width: 300, flexShrink: 0, display: "flex", flexDirection: "column", gap: 16, overflow: "auto" }}>
+        <div className="card" style={{ padding: 12, gap: 8, display: "flex", flexDirection: "column" }}>
+          <input
+            className="input"
+            placeholder="Find people by name…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {results
+            .filter((r) => !knownIds.has(r.id))
+            .map((r) => (
+              <div key={r.id} className="row" style={{ justifyContent: "space-between" }}>
+                <span>{r.displayName}</span>
+                <button
+                  className="btn sm"
+                  disabled={busyId === r.id}
+                  onClick={() => sendRequest(r.id)}
+                >
+                  Add
+                </button>
+              </div>
+            ))}
+        </div>
+
+        {requests && (requests.incoming.length > 0 || requests.outgoing.length > 0) && (
+          <div className="card" style={{ padding: 12, gap: 8, display: "flex", flexDirection: "column" }}>
+            {requests.incoming.map((r) => (
+              <div key={r.id} className="row" style={{ justifyContent: "space-between" }}>
+                <span>{r.user.displayName}</span>
+                <div className="row">
+                  <button className="btn sm primary" disabled={busyId === r.id} onClick={() => accept(r.id)}>
+                    Accept
+                  </button>
+                  <button className="btn sm ghost" disabled={busyId === r.id} onClick={() => decline(r.id)}>
+                    Decline
+                  </button>
+                </div>
+              </div>
+            ))}
+            {requests.outgoing.map((r) => (
+              <div key={r.id} className="row" style={{ justifyContent: "space-between" }}>
+                <span className="muted">{r.user.displayName} (pending)</span>
+                <button className="btn sm ghost" disabled={busyId === r.id} onClick={() => decline(r.id)}>
+                  Cancel
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="card" style={{ padding: 12, gap: 4, display: "flex", flexDirection: "column", flex: 1 }}>
+          {!friends ? (
+            <div className="muted">Loading…</div>
+          ) : friends.length === 0 ? (
+            <div className="muted">No friends yet — search above to add one.</div>
+          ) : (
+            friends.map((f) => (
+              <button
+                key={f.user.id}
+                className="btn ghost"
+                style={{
+                  justifyContent: "space-between",
+                  background: selected?.id === f.user.id ? "var(--surface-2)" : "transparent",
+                }}
+                onClick={() => setSelected(f.user)}
+              >
+                <span>{f.user.displayName}</span>
+                {f.unreadCount > 0 && <span className="badge">{f.unreadCount}</span>}
+              </button>
+            ))
+          )}
+        </div>
+
+        {error && <div className="error">{error}</div>}
+      </div>
+
+      <div className="card" style={{ flex: 1, minHeight: 0, display: "flex" }}>
+        {selected ? (
+          <ChatPane
+            api={api}
+            me={me}
+            friend={selected}
+            onRemove={() => remove(selected.id)}
+          />
+        ) : (
+          <div className="empty" style={{ margin: "auto" }}>
+            Pick a friend to start chatting.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ChatPane({
+  api,
+  me,
+  friend,
+  onRemove,
+}: {
+  api: ApiClient;
+  me: User;
+  friend: AuthorRef;
+  onRemove: () => void;
+}) {
+  const [messages, setMessages] = useState<Message[] | null>(null);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const messagesRef = useRef<Message[]>([]);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesRef.current = messages ?? [];
+  }, [messages]);
+
+  const load = useCallback(async () => {
+    try {
+      setMessages(await api.listMessages(friend.id, { limit: 50 }));
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }, [api, friend.id]);
+
+  useEffect(() => {
+    setMessages(null);
+    void load();
+  }, [friend.id, load]);
+
+  useEffect(() => {
+    const t = setInterval(async () => {
+      const last = messagesRef.current[messagesRef.current.length - 1];
+      try {
+        const fresh = await api.listMessages(friend.id, last ? { after: last.createdAt } : { limit: 50 });
+        if (fresh.length === 0) return;
+        setMessages((prev) => {
+          const merged = [...(prev ?? [])];
+          for (const m of fresh) {
+            const i = merged.findIndex((x) => x.id === m.id);
+            if (i >= 0) merged[i] = m;
+            else merged.push(m);
+          }
+          return merged;
+        });
+      } catch {
+        /* transient — retried next tick */
+      }
+    }, 3000);
+    return () => clearInterval(t);
+  }, [api, friend.id]);
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages]);
+
+  const send = async () => {
+    const body = draft.trim();
+    if (!body) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const msg = await api.sendMessage(friend.id, { body });
+      setMessages((prev) => [...(prev ?? []), msg]);
+      setDraft("");
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      <div className="row" style={{ padding: 12, borderBottom: "1px solid var(--border)", justifyContent: "space-between" }}>
+        <b>{friend.displayName}</b>
+        <button className="btn ghost sm" onClick={onRemove}>
+          Remove friend
+        </button>
+      </div>
+
+      <div ref={listRef} style={{ flex: 1, overflow: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+        {!messages ? (
+          <div className="muted">Loading…</div>
+        ) : messages.length === 0 ? (
+          <div className="muted">Say hi 👋</div>
+        ) : (
+          messages.map((m) => {
+            const mine = m.senderId === me.id;
+            return (
+              <div key={m.id} style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start" }}>
+                <div
+                  style={{
+                    maxWidth: "70%",
+                    padding: "6px 10px",
+                    borderRadius: 12,
+                    fontSize: 13,
+                    background: mine ? "linear-gradient(135deg, var(--accent), #5b8cff)" : "var(--surface-2)",
+                    color: mine ? "#fff" : "var(--text)",
+                  }}
+                >
+                  {m.body}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {error && <div className="error" style={{ margin: "0 12px 8px" }}>{error}</div>}
+
+      <div className="row" style={{ padding: 12, borderTop: "1px solid var(--border)" }}>
+        <input
+          className="input"
+          style={{ flex: 1 }}
+          placeholder={`Message ${friend.displayName}…`}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void send();
+            }
+          }}
+        />
+        <button className="btn primary" disabled={busy || !draft.trim()} onClick={send}>
+          Send
+        </button>
+      </div>
     </div>
   );
 }

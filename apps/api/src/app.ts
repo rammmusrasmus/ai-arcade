@@ -12,6 +12,7 @@ import { AppError, forbidden, registerErrorHandler } from "./lib/errors.js";
 import { authRoutes } from "./routes/auth.js";
 import { authoringRoutes } from "./routes/authoring.js";
 import { downloadRoutes } from "./routes/download.js";
+import { friendRoutes } from "./routes/friends.js";
 import { gameRoutes } from "./routes/games.js";
 import { moderationRoutes } from "./routes/moderation.js";
 import { multiplayerRoutes } from "./routes/multiplayer.js";
@@ -128,6 +129,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     await moderationRoutes(api);
     await uploadRoutes(api);
     await multiplayerRoutes(api);
+    await friendRoutes(api);
   });
 
   // Optionally serve the built web app (apps/web/dist) from this origin, so one

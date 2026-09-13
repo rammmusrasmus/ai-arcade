@@ -1,14 +1,18 @@
 import type {
+  AuthorRef,
   AuthResult,
   ChangePasswordInput,
   CreateGameInput,
   CreateVersionMeta,
+  Friend,
   ForgotPasswordInput,
+  FriendRequest,
   Game,
   GameVersion,
   ListGamesQuery,
   LoginChallenge,
   LoginInput,
+  Message,
   ModerationDecisionInput,
   Paginated,
   RateGameInput,
@@ -16,6 +20,8 @@ import type {
   ResendLoginInput,
   ResetPasswordInput,
   ReviewEvent,
+  SendFriendRequestInput,
+  SendMessageInput,
   SessionInfo,
   SubmitForReviewInput,
   UpdateGameInput,
@@ -278,5 +284,49 @@ export class ApiClient {
 
   reviewHistory(gameId: string): Promise<ReviewEvent[]> {
     return this.request("GET", `/moderation/games/${encodeURIComponent(gameId)}/history`);
+  }
+
+  /* ---------------- friends + messages ---------------- */
+
+  searchUsers(q: string): Promise<AuthorRef[]> {
+    return this.request("GET", "/users/search", { query: { q } });
+  }
+
+  listFriends(): Promise<Friend[]> {
+    return this.request("GET", "/friends");
+  }
+
+  listFriendRequests(): Promise<{ incoming: FriendRequest[]; outgoing: FriendRequest[] }> {
+    return this.request("GET", "/friends/requests");
+  }
+
+  /** Sends a request, or — if that person already asked you — accepts theirs instead. */
+  sendFriendRequest(input: SendFriendRequestInput): Promise<FriendRequest | { user: AuthorRef; friendsSince: string }> {
+    return this.request("POST", "/friends/requests", { json: input });
+  }
+
+  acceptFriendRequest(requestId: string): Promise<{ user: AuthorRef; friendsSince: string }> {
+    return this.request("POST", `/friends/requests/${encodeURIComponent(requestId)}/accept`);
+  }
+
+  /** Declines an incoming request, or cancels one you sent. */
+  declineFriendRequest(requestId: string): Promise<{ ok: true }> {
+    return this.request("POST", `/friends/requests/${encodeURIComponent(requestId)}/decline`);
+  }
+
+  removeFriend(userId: string): Promise<{ ok: true }> {
+    return this.request("DELETE", `/friends/${encodeURIComponent(userId)}`);
+  }
+
+  /** `after`/`before` are ISO timestamps: `after` polls for new messages, `before` pages older history. */
+  listMessages(
+    friendUserId: string,
+    opts: { after?: string; before?: string; limit?: number } = {},
+  ): Promise<Message[]> {
+    return this.request("GET", `/messages/${encodeURIComponent(friendUserId)}`, { query: opts });
+  }
+
+  sendMessage(friendUserId: string, input: SendMessageInput): Promise<Message> {
+    return this.request("POST", `/messages/${encodeURIComponent(friendUserId)}`, { json: input });
   }
 }

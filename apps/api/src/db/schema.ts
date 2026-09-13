@@ -274,6 +274,61 @@ export const plays = sqliteTable(
   }),
 );
 
+/* ------------------------------------------------------------------ */
+/* friendships — a request from requesterId to addresseeId; "accepted" */
+/* once the addressee confirms. Declining/unfriending/cancelling all   */
+/* just delete the row, so this table only ever holds pending or       */
+/* accepted relationships.                                             */
+/* ------------------------------------------------------------------ */
+
+export const friendships = sqliteTable(
+  "friendships",
+  {
+    id: text("id").primaryKey(),
+    requesterId: text("requester_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    addresseeId: text("addressee_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: text("status", { enum: ["pending", "accepted"] }).notNull().default("pending"),
+    createdAt: integer("created_at").notNull().default(now),
+    respondedAt: integer("responded_at"),
+  },
+  (t) => ({
+    pairUq: uniqueIndex("friendships_pair_uq").on(t.requesterId, t.addresseeId),
+    requesterIdx: index("friendships_requester_idx").on(t.requesterId),
+    addresseeIdx: index("friendships_addressee_idx").on(t.addresseeId),
+  }),
+);
+
+/* ------------------------------------------------------------------ */
+/* messages — direct messages between friends. conversationKey is the  */
+/* two user ids sorted and joined with ":", so a conversation's history */
+/* is one indexed range scan regardless of who sent what.               */
+/* ------------------------------------------------------------------ */
+
+export const messages = sqliteTable(
+  "messages",
+  {
+    id: text("id").primaryKey(),
+    conversationKey: text("conversation_key").notNull(),
+    senderId: text("sender_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    recipientId: text("recipient_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    createdAt: integer("created_at").notNull().default(now),
+    readAt: integer("read_at"),
+  },
+  (t) => ({
+    convIdx: index("messages_conversation_idx").on(t.conversationKey, t.createdAt),
+    recipientIdx: index("messages_recipient_idx").on(t.recipientId),
+  }),
+);
+
 export type UserRow = typeof users.$inferSelect;
 export type SessionRow = typeof sessions.$inferSelect;
 export type AuthChallengeRow = typeof authChallenges.$inferSelect;
@@ -282,3 +337,5 @@ export type GameRow = typeof games.$inferSelect;
 export type GameVersionRow = typeof gameVersions.$inferSelect;
 export type ReviewEventRow = typeof reviewEvents.$inferSelect;
 export type RatingRow = typeof ratings.$inferSelect;
+export type FriendshipRow = typeof friendships.$inferSelect;
+export type MessageRow = typeof messages.$inferSelect;
