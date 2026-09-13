@@ -7,13 +7,20 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { LoginInput, RegisterInput, UpdateProfileInput, User } from "@ai-arcade/shared";
+import type {
+  LoginChallenge,
+  LoginInput,
+  RegisterInput,
+  UpdateProfileInput,
+  User,
+} from "@ai-arcade/shared";
 import { api, API_URL } from "./api";
 
 interface Providers {
   password: boolean;
   github: boolean;
   devLogin: boolean;
+  emailDeliveryConfigured: boolean;
 }
 
 interface AuthValue {
@@ -22,8 +29,13 @@ interface AuthValue {
   providers: Providers;
   isModerator: boolean;
   refresh: () => Promise<void>;
-  register: (input: RegisterInput) => Promise<void>;
-  login: (input: LoginInput) => Promise<void>;
+  /** Creates the account and emails a sign-in code. Doesn't sign you in yet. */
+  register: (input: RegisterInput) => Promise<LoginChallenge>;
+  /** Checks the password and emails a sign-in code. Doesn't sign you in yet. */
+  login: (input: LoginInput) => Promise<LoginChallenge>;
+  /** The code from email + the challenge token → an actual session. */
+  verifyLogin: (loginToken: string, code: string) => Promise<void>;
+  resendLoginCode: (loginToken: string) => Promise<{ expiresInSeconds: number }>;
   devLogin: (email: string, displayName?: string) => Promise<void>;
   updateProfile: (input: UpdateProfileInput) => Promise<void>;
   changePassword: (newPassword: string, currentPassword?: string) => Promise<void>;
@@ -39,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: false,
     github: false,
     devLogin: false,
+    emailDeliveryConfigured: false,
   });
 
   const refresh = useCallback(async () => {
@@ -63,20 +76,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, [refresh]);
 
-  const register = useCallback(
-    async (input: RegisterInput) => {
-      await api.register(input);
+  const register = useCallback((input: RegisterInput) => api.register(input), []);
+  const login = useCallback((input: LoginInput) => api.login(input), []);
+
+  const verifyLogin = useCallback(
+    async (loginToken: string, code: string) => {
+      await api.verifyLogin({ loginToken, code });
       await refresh();
     },
     [refresh],
   );
 
-  const login = useCallback(
-    async (input: LoginInput) => {
-      await api.login(input);
-      await refresh();
-    },
-    [refresh],
+  const resendLoginCode = useCallback(
+    (loginToken: string) => api.resendLoginCode({ loginToken }),
+    [],
   );
 
   const devLogin = useCallback(
@@ -117,12 +130,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refresh,
       register,
       login,
+      verifyLogin,
+      resendLoginCode,
       devLogin,
       updateProfile,
       changePassword,
       logout,
     }),
-    [user, loading, providers, refresh, register, login, devLogin, updateProfile, changePassword, logout],
+    [
+      user,
+      loading,
+      providers,
+      refresh,
+      register,
+      login,
+      verifyLogin,
+      resendLoginCode,
+      devLogin,
+      updateProfile,
+      changePassword,
+      logout,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

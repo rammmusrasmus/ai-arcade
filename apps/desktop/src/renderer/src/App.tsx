@@ -689,16 +689,33 @@ function AccountControl({
 }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"signin" | "register">("signin");
-  const [providers, setProviders] = useState({ password: true, github: false, devLogin: false });
+  const [providers, setProviders] = useState({
+    password: true,
+    github: false,
+    devLogin: false,
+    emailDeliveryConfigured: false,
+  });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // set once register/login returns a pending challenge; shows the code step
+  const [challenge, setChallenge] = useState<{ loginToken: string; email: string } | null>(null);
+  const [code, setCode] = useState("");
+  const [cooldown, setCooldown] = useState(0);
+  const [notice, setNotice] = useState<string | null>(null);
+
   useEffect(() => {
     api.authProviders().then(setProviders).catch(() => undefined);
   }, [api]);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
 
   if (user) {
     return (
@@ -728,8 +745,24 @@ function AccountControl({
         mode === "register"
           ? await api.register({ email, password, displayName })
           : await api.login({ email, password });
+      setChallenge({ loginToken: res.loginToken, email: res.email });
+      setCode("");
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verify = async () => {
+    if (!challenge) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.verifyLogin({ loginToken: challenge.loginToken, code });
       await setToken(res.token);
       setOpen(false);
+      setChallenge(null);
       onChange();
     } catch (err) {
       setError(errorMessage(err));
@@ -748,7 +781,50 @@ function AccountControl({
           className="card"
           style={{ position: "absolute", right: 0, top: 34, width: 300, padding: 14, zIndex: 20, gap: 10 }}
         >
-          {providers.password ? (
+          {challenge ? (
+            <>
+              <div className="stat">
+                Code sent to <b>{challenge.email}</b>.
+                {!providers.emailDeliveryConfigured && " No mail provider configured — check the API server console."}
+              </div>
+              <input
+                className="input"
+                style={{ textAlign: "center", fontSize: 20, letterSpacing: 6 }}
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="000000"
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                onKeyDown={(e) => e.key === "Enter" && verify()}
+              />
+              <button className="btn primary" disabled={busy || code.length !== 6} onClick={verify}>
+                {busy ? "Checking…" : "Confirm"}
+              </button>
+              <div className="row" style={{ justifyContent: "space-between" }}>
+                <button className="btn ghost sm" onClick={() => setChallenge(null)}>
+                  ← Back
+                </button>
+                <button
+                  className="btn ghost sm"
+                  disabled={cooldown > 0 || busy}
+                  onClick={async () => {
+                    setError(null);
+                    setNotice(null);
+                    try {
+                      await api.resendLoginCode({ loginToken: challenge.loginToken });
+                      setNotice("Sent a new code.");
+                      setCooldown(30);
+                    } catch (err) {
+                      setError(errorMessage(err));
+                    }
+                  }}
+                >
+                  {cooldown > 0 ? `Resend (${cooldown}s)` : "Resend"}
+                </button>
+              </div>
+              {notice && <div className="stat" style={{ color: "#7ef0b0" }}>{notice}</div>}
+            </>
+          ) : providers.password ? (
             <>
               <div className="tabs" style={{ background: "var(--bg)", borderRadius: 8, padding: 3 }}>
                 {(["signin", "register"] as const).map((m) => (
@@ -800,7 +876,7 @@ function AccountControl({
             <div className="stat">Password sign-in is disabled on this server.</div>
           )}
 
-          {providers.devLogin && (
+          {!challenge && providers.devLogin && (
             <button
               className="btn ghost sm"
               disabled={busy || !email}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth";
 import { API_URL, errorMessage } from "../api";
@@ -7,7 +7,7 @@ import { ErrorNote } from "../components/primitives";
 type Mode = "signin" | "register";
 
 export function LoginPage() {
-  const { providers, register, login, devLogin, user } = useAuth();
+  const { providers, register, login, verifyLogin, resendLoginCode, devLogin, user } = useAuth();
   const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>("signin");
 
@@ -16,6 +16,9 @@ export function LoginPage() {
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Set once register/login returns a pending challenge; shows the code step.
+  const [challenge, setChallenge] = useState<{ loginToken: string; email: string } | null>(null);
 
   // dev login (local only) has its own tiny form
   const [devEmail, setDevEmail] = useState("");
@@ -30,17 +33,29 @@ export function LoginPage() {
     setError(null);
     setBusy(true);
     try {
-      if (mode === "register") {
-        await register({ email, password, displayName });
-      } else {
-        await login({ email, password });
-      }
-      navigate("/");
+      const res =
+        mode === "register" ? await register({ email, password, displayName }) : await login({ email, password });
+      setChallenge({ loginToken: res.loginToken, email: res.email });
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setBusy(false);
     }
+  }
+
+  if (challenge) {
+    return (
+      <CodeStep
+        email={challenge.email}
+        emailDeliveryConfigured={providers.emailDeliveryConfigured}
+        onBack={() => setChallenge(null)}
+        onVerify={async (code) => {
+          await verifyLogin(challenge.loginToken, code);
+          navigate("/");
+        }}
+        onResend={() => resendLoginCode(challenge.loginToken)}
+      />
+    );
   }
 
   return (
@@ -51,8 +66,8 @@ export function LoginPage() {
         </h1>
         <p className="text-sm text-[#9297b3] mt-1">
           {mode === "register"
-            ? "A profile lets you submit games and rate what you play."
-            : "Welcome back."}
+            ? "A profile lets you submit games and rate what you play. We'll email you a code to confirm it's you."
+            : "We'll email you a code to confirm it's you."}
         </p>
       </div>
 
@@ -172,6 +187,111 @@ export function LoginPage() {
         <ErrorNote>No sign-in methods are enabled on this server.</ErrorNote>
       )}
 
+      {error && <ErrorNote>{error}</ErrorNote>}
+    </div>
+  );
+}
+
+function CodeStep({
+  email,
+  emailDeliveryConfigured,
+  onVerify,
+  onResend,
+  onBack,
+}: {
+  email: string;
+  emailDeliveryConfigured: boolean;
+  onVerify: (code: string) => Promise<void>;
+  onResend: () => Promise<{ expiresInSeconds: number }>;
+  onBack: () => void;
+}) {
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  return (
+    <div className="max-w-md mx-auto card p-6 flex flex-col gap-4">
+      <div>
+        <h1 className="text-xl font-extrabold">Check your email</h1>
+        <p className="text-sm text-[#9297b3] mt-1">
+          We sent a 6-digit code to <b>{email}</b>. Enter it below to finish signing in.
+        </p>
+        {!emailDeliveryConfigured && (
+          <p className="text-xs text-[#ffd58a] mt-2">
+            This server has no mail provider configured — the code was printed to the API's
+            server console instead of emailed.
+          </p>
+        )}
+      </div>
+
+      <form
+        className="flex flex-col gap-3"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setError(null);
+          setBusy(true);
+          try {
+            await onVerify(code.trim());
+          } catch (err) {
+            setError(errorMessage(err));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <input
+          ref={inputRef}
+          className="input text-center text-2xl tracking-[0.5em]"
+          inputMode="numeric"
+          pattern="\d{6}"
+          maxLength={6}
+          autoComplete="one-time-code"
+          placeholder="000000"
+          value={code}
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+        />
+        <button className="btn btn-primary" disabled={busy || code.length !== 6}>
+          {busy ? "Checking…" : "Confirm"}
+        </button>
+      </form>
+
+      <div className="flex items-center justify-between text-sm">
+        <button className="text-[#9297b3] hover:text-white" onClick={onBack}>
+          ← Back
+        </button>
+        <button
+          className="text-[var(--color-accent)] disabled:opacity-40 disabled:text-[#7e849e]"
+          disabled={cooldown > 0 || busy}
+          onClick={async () => {
+            setError(null);
+            setNotice(null);
+            try {
+              await onResend();
+              setNotice("Sent a new code.");
+              setCooldown(30);
+            } catch (err) {
+              setError(errorMessage(err));
+            }
+          }}
+        >
+          {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend code"}
+        </button>
+      </div>
+
+      {notice && <p className="text-xs text-[#7ef0b0]">{notice}</p>}
       {error && <ErrorNote>{error}</ErrorNote>}
     </div>
   );

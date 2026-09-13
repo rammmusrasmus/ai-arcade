@@ -5,7 +5,9 @@ import {
   ChangePasswordInput,
   LoginInput,
   RegisterInput,
+  ResendLoginInput,
   UpdateProfileInput,
+  VerifyLoginInput,
 } from "@ai-arcade/shared";
 import {
   clearSessionCookie,
@@ -17,6 +19,11 @@ import {
   setSessionCookie,
   SESSION_COOKIE,
 } from "../auth/index.js";
+import {
+  createLoginChallenge,
+  resendLoginChallenge,
+  verifyLoginChallenge,
+} from "../auth/loginCode.js";
 import { hashPassword, verifyPassword } from "../auth/password.js";
 import { upsertUser } from "../auth/users.js";
 import {
@@ -67,6 +74,11 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   /* ---------------- email + password ---------------- */
+  //
+  // Registering or logging in never issues a session by itself. Both start a
+  // "challenge": a 6-digit code is emailed, and POST /auth/verify-login (the
+  // code + the challenge's token) is what actually creates the session. This
+  // means every sign-in — not just the first — is confirmed over email.
 
   if (env.passwordAuthEnabled) {
     app.post(
@@ -88,6 +100,7 @@ export async function authRoutes(app: FastifyInstance) {
           displayName: input.displayName.trim(),
           avatarUrl: null,
           passwordHash: await hashPassword(input.password),
+          emailVerifiedAt: null,
           bio: null,
           role: roleForEmail(email),
           githubId: null,
@@ -95,17 +108,16 @@ export async function authRoutes(app: FastifyInstance) {
         };
         await db.insert(users).values(row);
 
-        const token = await createSession(row.id, req.headers["user-agent"]);
-        setSessionCookie(reply, token);
+        const challenge = await createLoginChallenge(row, req.headers["user-agent"]);
         reply.status(201);
-        return { token, user: toUser(row) };
+        return { pending: true as const, email: row.email, ...challenge };
       },
     );
 
     app.post(
       "/auth/login",
       { preHandler: rateLimit("login", 10, 5 * 60_000) },
-      async (req, reply) => {
+      async (req) => {
         const input = LoginInput.parse(req.body);
         const email = normEmail(input.email);
         const user = await db.select().from(users).where(eq(users.email, email)).get();
@@ -114,9 +126,30 @@ export async function authRoutes(app: FastifyInstance) {
           // Constant-ish response; don't reveal which part was wrong.
           throw unauthorized("Invalid email or password");
         }
+        const challenge = await createLoginChallenge(user, req.headers["user-agent"]);
+        return { pending: true as const, email: user.email, ...challenge };
+      },
+    );
+
+    app.post(
+      "/auth/verify-login",
+      { preHandler: rateLimit("verify-login", 30, 15 * 60_000) },
+      async (req, reply) => {
+        const { loginToken, code } = VerifyLoginInput.parse(req.body);
+        const user = await verifyLoginChallenge(loginToken, code);
         const token = await createSession(user.id, req.headers["user-agent"]);
         setSessionCookie(reply, token);
         return { token, user: toUser(user) };
+      },
+    );
+
+    app.post(
+      "/auth/resend-login",
+      { preHandler: rateLimit("resend-login", 10, 15 * 60_000) },
+      async (req) => {
+        const { loginToken } = ResendLoginInput.parse(req.body);
+        const result = await resendLoginChallenge(loginToken);
+        return { ok: true as const, ...result };
       },
     );
 
@@ -210,6 +243,9 @@ export async function authRoutes(app: FastifyInstance) {
     password: env.passwordAuthEnabled,
     github: env.githubEnabled,
     devLogin: env.DEV_LOGIN_ENABLED && !env.isProd,
+    // If false, sign-in codes are printed to the server console instead of
+    // emailed — true local-dev-only fallback, never the case in production.
+    emailDeliveryConfigured: env.smtpConfigured,
   }));
 }
 

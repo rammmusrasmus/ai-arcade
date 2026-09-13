@@ -56,7 +56,9 @@ const EnvSchema = z.object({
   PUBLIC_API_URL: z.string().url().default("http://127.0.0.1:4000"),
   WEB_ORIGIN: z.string().default("http://127.0.0.1:5173"),
 
-  AUTH_SECRET: z.string().min(8, "AUTH_SECRET must be at least 8 chars"),
+  // Signs session cookies + OAuth state. Long, because a weak secret here would
+  // let an attacker forge sessions — this is a "keys to the login data" secret.
+  AUTH_SECRET: z.string().min(32, "AUTH_SECRET must be at least 32 chars — generate one with: node -e \"console.log(require('crypto').randomBytes(48).toString('hex'))\""),
 
   DATABASE_URL: z.string().default("file:./data/ai-arcade.db"),
 
@@ -68,6 +70,16 @@ const EnvSchema = z.object({
   DEV_LOGIN_ENABLED: bool(false),
   PASSWORD_AUTH_ENABLED: bool(true),
   ADMIN_EMAILS: z.string().optional().default(""),
+
+  // Outgoing mail for the mandatory "confirm it's you" login code. Leave
+  // SMTP_HOST blank in development — codes are logged to the server console
+  // instead of emailed, so the flow still works with no mail provider set up.
+  SMTP_HOST: z.string().optional().default(""),
+  SMTP_PORT: z.coerce.number().int().default(587),
+  SMTP_SECURE: bool(false),
+  SMTP_USER: z.string().optional().default(""),
+  SMTP_PASS: z.string().optional().default(""),
+  SMTP_FROM: z.string().optional().default("AI Arcade <noreply@ai-arcade.local>"),
 
   MAX_BUNDLE_BYTES: z.coerce.number().int().default(50 * 1024 * 1024),
   MAX_UNZIPPED_BYTES: z.coerce.number().int().default(200 * 1024 * 1024),
@@ -109,6 +121,7 @@ export const env = {
   ),
   githubEnabled: Boolean(raw.GITHUB_CLIENT_ID && raw.GITHUB_CLIENT_SECRET),
   passwordAuthEnabled: raw.PASSWORD_AUTH_ENABLED,
+  smtpConfigured: Boolean(raw.SMTP_HOST),
   corsAny: raw.CORS_ORIGINS.trim() === "*",
   corsOrigins: raw.CORS_ORIGINS.split(",").map((s) => s.trim()).filter((s) => s && s !== "*"),
   /** Normalised multiplayer relay path, always starting with "/". */

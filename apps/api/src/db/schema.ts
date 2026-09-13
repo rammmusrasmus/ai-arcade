@@ -23,6 +23,8 @@ export const users = sqliteTable(
     avatarUrl: text("avatar_url"),
     /** scrypt hash for email/password accounts; null for OAuth / dev-login users. */
     passwordHash: text("password_hash"),
+    /** Set the first time an emailed login code is confirmed. */
+    emailVerifiedAt: integer("email_verified_at"),
     bio: text("bio"),
     role: text("role", { enum: ["user", "moderator", "admin"] })
       .notNull()
@@ -55,6 +57,40 @@ export const sessions = sqliteTable(
   (t) => ({
     tokenUq: uniqueIndex("sessions_token_uq").on(t.tokenHash),
     userIdx: index("sessions_user_idx").on(t.userId),
+  }),
+);
+
+/* ------------------------------------------------------------------ */
+/* auth_challenges — the emailed "confirm it's you" code required on   */
+/* every password register/login. Never stores the raw token or code, */
+/* only their SHA-256 hashes — same treatment as session tokens.       */
+/* ------------------------------------------------------------------ */
+
+export const authChallenges = sqliteTable(
+  "auth_challenges",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    purpose: text("purpose", { enum: ["login"] }).notNull().default("login"),
+    /** sha256 of the opaque token the client holds to reference this challenge. */
+    tokenHash: text("token_hash").notNull(),
+    /** sha256 of the 6-digit code emailed to the user. */
+    codeHash: text("code_hash").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    maxAttempts: integer("max_attempts").notNull().default(5),
+    resends: integer("resends").notNull().default(0),
+    maxResends: integer("max_resends").notNull().default(3),
+    lastSentAt: integer("last_sent_at").notNull().default(now),
+    expiresAt: integer("expires_at").notNull(),
+    consumedAt: integer("consumed_at"),
+    userAgent: text("user_agent"),
+    createdAt: integer("created_at").notNull().default(now),
+  },
+  (t) => ({
+    tokenUq: uniqueIndex("auth_challenges_token_uq").on(t.tokenHash),
+    userIdx: index("auth_challenges_user_idx").on(t.userId),
   }),
 );
 
@@ -212,6 +248,7 @@ export const plays = sqliteTable(
 
 export type UserRow = typeof users.$inferSelect;
 export type SessionRow = typeof sessions.$inferSelect;
+export type AuthChallengeRow = typeof authChallenges.$inferSelect;
 export type GameRow = typeof games.$inferSelect;
 export type GameVersionRow = typeof gameVersions.$inferSelect;
 export type ReviewEventRow = typeof reviewEvents.$inferSelect;

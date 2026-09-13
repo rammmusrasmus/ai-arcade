@@ -6,17 +6,20 @@ import type {
   Game,
   GameVersion,
   ListGamesQuery,
+  LoginChallenge,
   LoginInput,
   ModerationDecisionInput,
   Paginated,
   RateGameInput,
   RegisterInput,
+  ResendLoginInput,
   ReviewEvent,
   SessionInfo,
   SubmitForReviewInput,
   UpdateGameInput,
   UpdateProfileInput,
   User,
+  VerifyLoginInput,
 } from "./schemas.js";
 
 export class ApiClientError extends Error {
@@ -115,7 +118,12 @@ export class ApiClient {
 
   /* ---------------- auth ---------------- */
 
-  authProviders(): Promise<{ password: boolean; github: boolean; devLogin: boolean }> {
+  authProviders(): Promise<{
+    password: boolean;
+    github: boolean;
+    devLogin: boolean;
+    emailDeliveryConfigured: boolean;
+  }> {
     return this.request("GET", "/auth/providers");
   }
 
@@ -124,12 +132,24 @@ export class ApiClient {
     return this.url("/auth/github", { returnTo });
   }
 
-  register(input: RegisterInput): Promise<AuthResult> {
+  /** Creates the account, emails a 6-digit code, and returns a pending challenge. */
+  register(input: RegisterInput): Promise<LoginChallenge> {
     return this.request("POST", "/auth/register", { json: input });
   }
 
-  login(input: LoginInput): Promise<AuthResult> {
+  /** Checks the password, emails a 6-digit code, and returns a pending challenge. */
+  login(input: LoginInput): Promise<LoginChallenge> {
     return this.request("POST", "/auth/login", { json: input });
+  }
+
+  /** Completes register/login: the code from email + the challenge's token → a session. */
+  verifyLogin(input: VerifyLoginInput): Promise<AuthResult> {
+    return this.request("POST", "/auth/verify-login", { json: input });
+  }
+
+  /** Requests a fresh code for a still-open challenge (rate-limited). */
+  resendLoginCode(input: ResendLoginInput): Promise<{ ok: true; expiresInSeconds: number }> {
+    return this.request("POST", "/auth/resend-login", { json: input });
   }
 
   changePassword(input: ChangePasswordInput): Promise<{ ok: true }> {

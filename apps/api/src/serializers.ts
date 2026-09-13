@@ -38,6 +38,7 @@ export function toUser(u: UserRow): User {
     bio: u.bio ?? null,
     role: u.role,
     hasPassword: Boolean(u.passwordHash),
+    emailVerified: Boolean(u.emailVerifiedAt),
     createdAt: isoReq(u.createdAt),
   };
 }

@@ -35,16 +35,20 @@ export async function upsertUser(input: UpsertUserInput): Promise<UserRow> {
     return existing;
   }
 
+  const now = Date.now();
   const row: UserRow = {
     id: id("user"),
     email,
     displayName: input.displayName || email.split("@")[0]!,
     avatarUrl: input.avatarUrl ?? null,
     passwordHash: null,
+    // Reached via GitHub OAuth or the local dev-login bypass — both already
+    // represent an authenticated identity, so there's no separate code to confirm.
+    emailVerifiedAt: now,
     bio: null,
     role: roleForEmail(email),
     githubId: input.githubId ?? null,
-    createdAt: Date.now(),
+    createdAt: now,
   };
   await db.insert(users).values(row);
   return row;

@@ -71,6 +71,8 @@ export const User = z.object({
   role: UserRole,
   /** Whether this account can sign in with an email + password. */
   hasPassword: z.boolean(),
+  /** Confirmed at least once via the emailed sign-in code. */
+  emailVerified: z.boolean(),
   createdAt: z.string(),
 });
 export type User = z.infer<typeof User>;
@@ -112,6 +114,33 @@ export const AuthResult = z.object({
   user: User,
 });
 export type AuthResult = z.infer<typeof AuthResult>;
+
+/**
+ * Registering or logging in with a password never returns a session directly —
+ * it starts a challenge: a 6-digit code is emailed, and the client must send it
+ * back (with this token) to `POST /auth/verify-login` to actually get a session.
+ */
+export const LoginChallenge = z.object({
+  pending: z.literal(true),
+  loginToken: z.string(),
+  email: z.string().email(),
+  expiresInSeconds: z.number().int().positive(),
+});
+export type LoginChallenge = z.infer<typeof LoginChallenge>;
+
+export const VerifyLoginInput = z.object({
+  loginToken: z.string().min(1),
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, "6-digit code"),
+});
+export type VerifyLoginInput = z.infer<typeof VerifyLoginInput>;
+
+export const ResendLoginInput = z.object({
+  loginToken: z.string().min(1),
+});
+export type ResendLoginInput = z.infer<typeof ResendLoginInput>;
 
 /** A minimal public author reference embedded in game payloads. */
 export const AuthorRef = z.object({

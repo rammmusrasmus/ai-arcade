@@ -23,13 +23,19 @@ Caddy can get a TLS certificate.)
 # on the server
 git clone <your-repo> ai-arcade && cd ai-arcade      # or: scp the folder over
 cp .env.production.example .env
-nano .env                                            # fill in DOMAIN, AUTH_SECRET, ADMIN_EMAILS, PUBLIC_*
+nano .env                                            # fill in DOMAIN, AUTH_SECRET, ADMIN_EMAILS, PUBLIC_*, SMTP_*
 
 # generate AUTH_SECRET:
 node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 
 docker compose up -d --build
 ```
+
+**Email is required for anyone to sign in with a password.** Every register/login emails a
+6-digit code as a second factor; without `SMTP_HOST` set, that code only reaches the API's
+server console log, which real users never see. Fill in `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/
+`SMTP_PASS`/`SMTP_FROM` in `.env` with a real provider (Amazon SES, Postmark, SendGrid,
+Mailgun, or your own mail server) before inviting anyone else.
 
 Caddy fetches a Let's Encrypt certificate on first request (give it ~30s). Then:
 
