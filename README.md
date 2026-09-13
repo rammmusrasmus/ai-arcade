@@ -161,8 +161,9 @@ just runs the API against it, or skip the script and set `PUBLIC_API_URL` / `PUB
 **Always-on (a real hosted service):** see **[docs/deploy.md](docs/deploy.md)**. One
 `docker compose up -d` on any Linux box with a domain — the included `Dockerfile` +
 `docker-compose.yml` run the whole thing (API + relay + web + game files + update feed)
-behind Caddy with automatic HTTPS, state in `./data`. GitHub Actions workflows
-(`.github/workflows/`) auto-redeploy on push and build the desktop installers on tags.
+behind Caddy with automatic HTTPS, state in `./data`. On a Coolify server, deploy the
+`Dockerfile` directly instead (see the doc). A GitHub Actions workflow builds the desktop
+installers on tags.
 
 Once your friend's app points at your server, the flow is the same as local: they sign in,
 **Store → Install** your game, **Library → Play**, and **Play online** connects them to

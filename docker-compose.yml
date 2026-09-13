@@ -10,8 +10,6 @@
 services:
   app:
     build: .
-    # After the GitHub Actions image build is set up you can swap the line above for:
-    # image: ghcr.io/OWNER/REPO:latest
     restart: unless-stopped
     env_file: .env
     environment:

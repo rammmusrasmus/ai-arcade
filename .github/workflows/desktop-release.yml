@@ -2,9 +2,8 @@ name: Desktop release
 
 # Tag a release to build + publish the desktop apps:
 #   git tag v0.2.0 && git push --tags
-# Produces installers for Windows / macOS / Linux, attaches them to a GitHub
-# Release, and uploads each platform's electron-updater feed to the server so
-# installed apps auto-update.
+# Produces installers for Windows / macOS / Linux and attaches them to a GitHub
+# Release.
 
 on:
   push:
@@ -86,15 +85,3 @@ jobs:
             apps/desktop/release/*.exe
             apps/desktop/release/*.dmg
             apps/desktop/release/*.AppImage
-
-      - name: Publish update feed to server
-        continue-on-error: true # skipped cleanly if DEPLOY_SSH_* secrets aren't set
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.DEPLOY_SSH_HOST }}
-          username: ${{ secrets.DEPLOY_SSH_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ secrets.DEPLOY_SSH_PORT || 22 }}
-          source: "apps/desktop/release/latest*.yml,apps/desktop/release/*.exe,apps/desktop/release/*.dmg,apps/desktop/release/*.AppImage,apps/desktop/release/*.blockmap"
-          target: "${{ secrets.DEPLOY_PATH }}/data/storage/public/updates/"
-          strip_components: 3

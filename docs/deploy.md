@@ -58,7 +58,7 @@ Caddy fetches a Let's Encrypt certificate on first request (give it ~30s). Then:
 git pull && docker compose up -d --build
 ```
 
-Or wire up CI (below) and it redeploys on every push.
+Or host it on Coolify (below), which redeploys on every push.
 
 ### Backups
 
@@ -80,44 +80,29 @@ New installs then default to your server; users can still override in-app.
 
 ---
 
-## 3. GitHub Actions (auto deploy + auto builds)
+## 3. Hosting on Coolify
 
-Two workflows are included:
+Coolify builds from GitHub on the server and handles the proxy, HTTPS and redeploys on push,
+so the Caddy compose stack above isn't needed.
 
-| Workflow | Trigger | Does |
-| --- | --- | --- |
-| `.github/workflows/deploy.yml` | push to `main` touching the server | builds the Docker image → `ghcr.io/OWNER/REPO` → SSHes in and `docker compose pull && up -d` |
-| `.github/workflows/desktop-release.yml` | push a `v*` tag | builds Windows / macOS / Linux installers, attaches them to a GitHub Release, and uploads each platform's update feed to `./data/storage/public/updates/` so installed apps auto-update |
+- **Build pack:** Dockerfile (repo root). Don't use `docker-compose.yml` — its Caddy clashes
+  with Coolify's proxy.
+- **Port:** `4000` (healthcheck: `GET /health`).
+- **Branch:** `main`.
+- **Persistent volume:** mount one at `/data` (SQLite DB + uploads). Run **one** replica.
+- **Env vars:** `AUTH_SECRET` (32+ chars), `PUBLIC_API_URL` and `WEB_ORIGIN` (both the public
+  `https://` URL) are required; set `ADMIN_EMAILS`, `CORS_ORIGINS=*` and `SMTP_*` too.
+- **WebSockets:** `/mp` holds long-lived connections — no short idle timeouts on it.
+- **Uploads:** allow request bodies of ~80 MB (game bundles are up to 50 MB).
 
-### Repository secrets (Settings → Secrets and variables → Actions)
+---
 
-| Secret | Value |
-| --- | --- |
-| `DEPLOY_SSH_HOST` | server IP / hostname |
-| `DEPLOY_SSH_USER` | ssh user (must be able to run `docker`) |
-| `DEPLOY_SSH_KEY` | that user's **private** SSH key |
-| `DEPLOY_SSH_PORT` | ssh port (omit for 22) |
-| `DEPLOY_PATH` | absolute path to the `ai-arcade` folder on the server, e.g. `/opt/ai-arcade` |
+## 4. Desktop releases (GitHub Actions)
 
-### Repository variable
-
-| Variable | Value |
-| --- | --- |
-| `PUBLIC_API_URL` | `https://games.example.com` — baked into the desktop installers |
-
-### First-time server prep for CI image pulls
-
-The compose file builds locally by default. To pull the CI-built image instead, edit
-`docker-compose.yml` on the server:
-
-```yaml
-  app:
-    # build: .
-    image: ghcr.io/OWNER/REPO:latest
-```
-
-and make sure the server can pull it (public package, or `docker login ghcr.io` once with a
-PAT). The deploy workflow logs in for you each run.
+`.github/workflows/desktop-release.yml` runs when you push a `v*` tag: it builds Windows /
+macOS / Linux installers and attaches them to a GitHub Release. Set the repository variable
+`PUBLIC_API_URL` (Settings → Secrets and variables → Actions → Variables) to your public URL
+so it's baked into the installers.
 
 ### Cutting a desktop release
 
@@ -126,9 +111,8 @@ git tag v0.2.0
 git push --tags
 ```
 
-The workflow builds all three platforms. Windows/macOS/Linux each publish their own
-`latest*.yml` — electron-updater on each user's machine picks the right one and prompts
-"Update N downloaded — Restart & update".
+The workflow builds all three platforms and attaches the installers to the release.
+In-app auto-update isn't wired to a feed yet, so existing installs won't update themselves.
 
 ---
 
