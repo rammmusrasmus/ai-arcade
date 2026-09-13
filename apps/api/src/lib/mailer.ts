@@ -54,3 +54,22 @@ export async function sendLoginCodeEmail(to: string, code: string, minutes: numb
     </div>`;
   await sendMail({ to, subject: "Your AI Arcade sign-in code", text, html });
 }
+
+export async function sendPasswordResetEmail(
+  to: string,
+  resetUrl: string,
+  minutes: number,
+): Promise<void> {
+  const text =
+    `Someone (hopefully you) asked to reset the password on your AI Arcade account.\n\n` +
+    `Reset it here: ${resetUrl}\n\n` +
+    `This link expires in ${minutes} minutes and can only be used once. ` +
+    `If you didn't request this, you can ignore this email — your password won't change.`;
+  const html = `
+    <div style="font-family:system-ui,sans-serif;max-width:420px">
+      <p>Someone (hopefully you) asked to reset the password on your AI Arcade account.</p>
+      <p><a href="${resetUrl}" style="color:#7ab8ff">Reset your password</a></p>
+      <p style="color:#666;font-size:13px">This link expires in ${minutes} minutes and can only be used once. If you didn't request this, you can ignore this email — your password won't change.</p>
+    </div>`;
+  await sendMail({ to, subject: "Reset your AI Arcade password", text, html });
+}

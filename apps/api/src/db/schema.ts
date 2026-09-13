@@ -95,6 +95,31 @@ export const authChallenges = sqliteTable(
 );
 
 /* ------------------------------------------------------------------ */
+/* password_resets — emailed "forgot password" links. Like              */
+/* auth_challenges, only the SHA-256 hash of the token is ever stored;  */
+/* the raw token lives only in the emailed link.                       */
+/* ------------------------------------------------------------------ */
+
+export const passwordResets = sqliteTable(
+  "password_resets",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: integer("expires_at").notNull(),
+    consumedAt: integer("consumed_at"),
+    userAgent: text("user_agent"),
+    createdAt: integer("created_at").notNull().default(now),
+  },
+  (t) => ({
+    tokenUq: uniqueIndex("password_resets_token_uq").on(t.tokenHash),
+    userIdx: index("password_resets_user_idx").on(t.userId),
+  }),
+);
+
+/* ------------------------------------------------------------------ */
 /* games                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -249,6 +274,7 @@ export const plays = sqliteTable(
 export type UserRow = typeof users.$inferSelect;
 export type SessionRow = typeof sessions.$inferSelect;
 export type AuthChallengeRow = typeof authChallenges.$inferSelect;
+export type PasswordResetRow = typeof passwordResets.$inferSelect;
 export type GameRow = typeof games.$inferSelect;
 export type GameVersionRow = typeof gameVersions.$inferSelect;
 export type ReviewEventRow = typeof reviewEvents.$inferSelect;

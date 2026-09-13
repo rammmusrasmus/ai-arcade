@@ -20,20 +20,24 @@ setInterval(() => {
  *
  * Keys by the authenticated user when there is one, else by IP.
  */
+/** Raw bucket check, keyed however the caller likes — e.g. by email instead of user/IP. */
+export function checkRateLimit(key: string, max: number, windowMs: number): void {
+  const now = Date.now();
+  let b = buckets.get(key);
+  if (!b || b.resetAt < now) {
+    b = { count: 0, resetAt: now + windowMs };
+    buckets.set(key, b);
+  }
+  b.count += 1;
+  if (b.count > max) {
+    const retry = Math.ceil((b.resetAt - now) / 1000);
+    throw new AppError(429, "rate_limited", `Too many attempts. Try again in ${retry}s.`);
+  }
+}
+
 export function rateLimit(name: string, max: number, windowMs: number) {
   return async (req: FastifyRequest) => {
     const who = req.user?.id ?? req.ip;
-    const key = `${name}:${who}`;
-    const now = Date.now();
-    let b = buckets.get(key);
-    if (!b || b.resetAt < now) {
-      b = { count: 0, resetAt: now + windowMs };
-      buckets.set(key, b);
-    }
-    b.count += 1;
-    if (b.count > max) {
-      const retry = Math.ceil((b.resetAt - now) / 1000);
-      throw new AppError(429, "rate_limited", `Too many attempts. Try again in ${retry}s.`);
-    }
+    checkRateLimit(`${name}:${who}`, max, windowMs);
   };
 }

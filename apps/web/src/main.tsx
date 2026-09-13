@@ -7,6 +7,8 @@ import { Layout } from "./components/Layout";
 import { BrowsePage } from "./pages/BrowsePage";
 import { GameDetailPage } from "./pages/GameDetailPage";
 import { LoginPage } from "./pages/LoginPage";
+import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
+import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { SubmitPage } from "./pages/SubmitPage";
 import { EditGamePage } from "./pages/EditGamePage";
 import { MyGamesPage } from "./pages/MyGamesPage";
@@ -26,6 +28,8 @@ const router = createBrowserRouter([
       { path: "/", element: <BrowsePage /> },
       { path: "/games/:slug", element: <GameDetailPage /> },
       { path: "/login", element: <LoginPage /> },
+      { path: "/forgot-password", element: <ForgotPasswordPage /> },
+      { path: "/reset-password", element: <ResetPasswordPage /> },
       { path: "/submit", element: <SubmitPage /> },
       { path: "/manage/:slug", element: <EditGamePage /> },
       { path: "/my-games", element: <MyGamesPage /> },

@@ -3,9 +3,11 @@ import { z } from "zod";
 import type { FastifyInstance } from "fastify";
 import {
   ChangePasswordInput,
+  ForgotPasswordInput,
   LoginInput,
   RegisterInput,
   ResendLoginInput,
+  ResetPasswordInput,
   UpdateProfileInput,
   VerifyLoginInput,
 } from "@ai-arcade/shared";
@@ -25,6 +27,7 @@ import {
   verifyLoginChallenge,
 } from "../auth/loginCode.js";
 import { hashPassword, verifyPassword } from "../auth/password.js";
+import { requestPasswordReset, resetPassword } from "../auth/passwordReset.js";
 import { upsertUser } from "../auth/users.js";
 import {
   buildAuthorizeUrl,
@@ -38,7 +41,7 @@ import { users } from "../db/schema.js";
 import { env } from "../env.js";
 import { badRequest, conflict, forbidden, notFound, unauthorized } from "../lib/errors.js";
 import { id } from "../lib/ids.js";
-import { rateLimit } from "../lib/rateLimit.js";
+import { checkRateLimit, rateLimit } from "../lib/rateLimit.js";
 import { toUser } from "../serializers.js";
 
 function safeReturnTo(raw: unknown): string {
@@ -168,6 +171,31 @@ export async function authRoutes(app: FastifyInstance) {
         .where(eq(users.id, user.id));
       return { ok: true as const };
     });
+
+    app.post(
+      "/auth/forgot-password",
+      { preHandler: rateLimit("forgot-password", 5, 15 * 60_000) },
+      async (req) => {
+        const { email } = ForgotPasswordInput.parse(req.body);
+        const normalized = normEmail(email);
+        // Also cap by the target email itself so one victim can't be spammed
+        // from many different IPs.
+        checkRateLimit(`forgot-password-email:${normalized}`, 5, 60 * 60_000);
+        await requestPasswordReset(normalized, req.headers["user-agent"]);
+        // Same response whether or not the account exists — no enumeration.
+        return { ok: true as const };
+      },
+    );
+
+    app.post(
+      "/auth/reset-password",
+      { preHandler: rateLimit("reset-password", 20, 15 * 60_000) },
+      async (req) => {
+        const { token, newPassword } = ResetPasswordInput.parse(req.body);
+        await resetPassword(token, newPassword);
+        return { ok: true as const };
+      },
+    );
   }
 
   /* ---------------- profile ---------------- */

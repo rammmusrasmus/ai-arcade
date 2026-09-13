@@ -142,6 +142,17 @@ export const ResendLoginInput = z.object({
 });
 export type ResendLoginInput = z.infer<typeof ResendLoginInput>;
 
+export const ForgotPasswordInput = z.object({
+  email: z.string().email().max(200),
+});
+export type ForgotPasswordInput = z.infer<typeof ForgotPasswordInput>;
+
+export const ResetPasswordInput = z.object({
+  token: z.string().min(1),
+  newPassword: Password,
+});
+export type ResetPasswordInput = z.infer<typeof ResetPasswordInput>;
+
 /** A minimal public author reference embedded in game payloads. */
 export const AuthorRef = z.object({
   id: z.string(),

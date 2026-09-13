@@ -3,6 +3,7 @@ import type {
   ChangePasswordInput,
   CreateGameInput,
   CreateVersionMeta,
+  ForgotPasswordInput,
   Game,
   GameVersion,
   ListGamesQuery,
@@ -13,6 +14,7 @@ import type {
   RateGameInput,
   RegisterInput,
   ResendLoginInput,
+  ResetPasswordInput,
   ReviewEvent,
   SessionInfo,
   SubmitForReviewInput,
@@ -154,6 +156,16 @@ export class ApiClient {
 
   changePassword(input: ChangePasswordInput): Promise<{ ok: true }> {
     return this.request("POST", "/auth/change-password", { json: input });
+  }
+
+  /** Always resolves the same way, whether or not that email has an account. */
+  forgotPassword(input: ForgotPasswordInput): Promise<{ ok: true }> {
+    return this.request("POST", "/auth/forgot-password", { json: input });
+  }
+
+  /** Sets a new password from an emailed reset link's token, and signs out every session. */
+  resetPassword(input: ResetPasswordInput): Promise<{ ok: true }> {
+    return this.request("POST", "/auth/reset-password", { json: input });
   }
 
   updateProfile(input: UpdateProfileInput): Promise<{ user: User }> {

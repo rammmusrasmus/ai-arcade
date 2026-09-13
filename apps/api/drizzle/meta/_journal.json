@@ -29,6 +29,13 @@
       "when": 1789287286340,
       "tag": "0003_fluffy_hobgoblin",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1789289182648,
+      "tag": "0004_abandoned_oracle",
+      "breakpoints": true
     }
   ]
 }

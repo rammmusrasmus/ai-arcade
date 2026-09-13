@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth";
 import { API_URL, errorMessage } from "../api";
 import { ErrorNote } from "../components/primitives";
@@ -128,6 +128,11 @@ export function LoginPage() {
               />
               {mode === "register" && (
                 <span className="text-xs text-[#7e849e]">At least 8 characters.</span>
+              )}
+              {mode === "signin" && (
+                <Link to="/forgot-password" className="text-xs text-[var(--color-accent)] self-end">
+                  Forgot password?
+                </Link>
               )}
             </label>
             <button className="btn btn-primary" disabled={busy}>

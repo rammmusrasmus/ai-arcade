@@ -161,7 +161,7 @@ export function App() {
           ＋ Upload game
         </button>
         <ServerControl currentUrl={apiUrl} />
-        <AccountControl api={api} user={user} onChange={() => refreshSession(api)} />
+        <AccountControl api={api} user={user} apiUrl={apiUrl} onChange={() => refreshSession(api)} />
       </header>
 
       <UpdateBanner />
@@ -681,10 +681,12 @@ function ServerControl({ currentUrl }: { currentUrl: string }) {
 function AccountControl({
   api,
   user,
+  apiUrl,
   onChange,
 }: {
   api: ApiClient;
   user: User | null;
+  apiUrl: string;
   onChange: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -864,6 +866,16 @@ function AccountControl({
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && submit()}
               />
+              {mode === "signin" && (
+                <button
+                  type="button"
+                  className="btn ghost sm"
+                  style={{ alignSelf: "flex-end" }}
+                  onClick={() => window.arcade.openExternal(`${apiUrl}/forgot-password`)}
+                >
+                  Forgot password?
+                </button>
+              )}
               <button
                 className="btn primary"
                 disabled={busy || !email || !password || (mode === "register" && displayName.length < 2)}
