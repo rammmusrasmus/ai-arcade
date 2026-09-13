@@ -1,13 +1,16 @@
 import { app, type BrowserWindow } from "electron";
 import electronUpdater from "electron-updater";
-import { getApiUrl } from "./config.js";
 
 const { autoUpdater } = electronUpdater;
 
 const debug = (...m: unknown[]) => console.error("[updater]", ...m);
 debug("module loaded; autoUpdater is", typeof autoUpdater, "isPackaged", app.isPackaged);
 
-/** Run the updater even from an unpackaged build when AA_UPDATER_FORCE=1 (testing only). */
+/**
+ * Run the updater even from an unpackaged build when AA_UPDATER_FORCE=1 (testing only;
+ * needs a dev-app-update.yml next to the app). Packaged builds read the GitHub Releases
+ * feed from the app-update.yml electron-builder embeds from package.json "publish".
+ */
 const forced = process.env.AA_UPDATER_FORCE === "1";
 
 export type UpdateState =
@@ -28,11 +31,6 @@ function emit(next: UpdateState) {
 
 export function currentUpdateState(): UpdateState {
   return last;
-}
-
-/** The update feed lives on whatever server the app is pointed at. */
-function feedUrl(): string {
-  return getApiUrl().replace(/\/+$/, "") + "/files/updates";
 }
 
 export function initAutoUpdater(windowGetter: () => BrowserWindow | null): void {
@@ -74,9 +72,6 @@ export function initAutoUpdater(windowGetter: () => BrowserWindow | null): void 
 export async function checkForUpdates(): Promise<UpdateState> {
   if (!app.isPackaged && !forced) return { state: "unsupported" };
   try {
-    const url = feedUrl();
-    debug("checking feed", url);
-    autoUpdater.setFeedURL({ provider: "generic", url, channel: "latest" });
     const r = await autoUpdater.checkForUpdates();
     debug("checkForUpdates resolved", r?.updateInfo?.version ?? "(none)");
   } catch (err) {

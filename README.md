@@ -65,25 +65,32 @@ npm run dev:desktop     # needs the API running (npm run dev:api)
 **Package a downloadable build** — one command from the repo root:
 
 ```bash
-npm run pack:desktop            # bump patch version, build, publish the update feed
+npm run pack:desktop            # bump patch version, build
 npm run pack:desktop -- --keep-version
 npm run pack:desktop -- --set-version 0.3.0
 ```
 
-It runs `electron-vite build` → `electron-builder --win` (NSIS installer + `latest.yml`) →
-a portable `.zip` fallback, then copies everything into the API's served folders
-(`/files/downloads/…` and `/files/updates/…`) and mirrors your own installed copy.
+It runs `electron-vite build` → `electron-builder --win` (NSIS installer) → a portable
+`.zip` fallback, then copies both into the API's `/files/downloads/…` and mirrors your own
+installed copy. It does **not** ship an update to anyone.
 
-**Auto-update:** the app checks `<its configured Server URL>/files/updates/latest.yml` on
-launch and every 6h (`apps/desktop/src/main/updater.ts`, via `electron-updater`). Once a
-friend has installed `AI-Arcade-Setup-*.exe` once, every `pack:desktop` you run reaches
-them on their next relaunch — they see an "Update N downloaded — Restart & update" bar.
-Only installed (NSIS) builds auto-update; the portable zip does not.
+**Auto-update:** installed apps check the newest GitHub Release of this repo on launch and
+every 6h (`apps/desktop/src/main/updater.ts`, via `electron-updater`). To ship an update,
+push a version tag — the `desktop-release` workflow builds every platform and publishes the
+release with its `latest*.yml` metadata:
+
+```bash
+git tag v0.2.0 && git push --tags
+```
+
+Friends then see an "Update N downloaded — Restart & update" bar on their next launch. Only
+installed builds auto-update (Windows NSIS, Linux AppImage); the portable zip does not, and
+macOS needs a signed build.
 
 Building the NSIS installer on Windows needs **Developer Mode** on
 (Settings → Privacy & security → For developers) or an elevated shell — electron-builder
-unpacks a symlinked archive. Without it, `pack:desktop` still produces the portable zip but
-skips the update feed. macOS/Linux are unaffected.
+unpacks a symlinked archive. Without it, `pack:desktop` still produces the portable zip.
+macOS/Linux are unaffected.
 
 The packaged app talks to `http://127.0.0.1:4000` by default. In-app, **🌐 Server** sets it
 (persisted); or launch with `AI_ARCADE_API_URL` / `AI_ARCADE_WS_URL`.

@@ -111,8 +111,10 @@ git tag v0.2.0
 git push --tags
 ```
 
-The workflow builds all three platforms and attaches the installers to the release.
-In-app auto-update isn't wired to a feed yet, so existing installs won't update themselves.
+The workflow builds all three platforms and publishes one release with the installers and
+each platform's `latest*.yml`. Installed apps pick up the newest non-prerelease release on
+their next launch and prompt "Update N downloaded — Restart & update" (Windows and Linux;
+macOS auto-update needs a signed build). Tag versions must be higher than what's installed.
 
 ---
 

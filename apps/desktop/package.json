@@ -50,9 +50,9 @@
     },
     "publish": [
       {
-        "provider": "generic",
-        "url": "https://update-feed.invalid/updates",
-        "channel": "latest"
+        "provider": "github",
+        "owner": "rammmusrasmus",
+        "repo": "ai-arcade"
       }
     ],
     "win": {
@@ -79,13 +79,15 @@
       "target": [
         "AppImage"
       ],
-      "category": "Game"
+      "category": "Game",
+      "artifactName": "AI-Arcade-${version}.${ext}"
     },
     "mac": {
       "target": [
         "dmg"
       ],
-      "category": "public.app-category.games"
+      "category": "public.app-category.games",
+      "artifactName": "AI-Arcade-${version}.${ext}"
     }
   }
 }

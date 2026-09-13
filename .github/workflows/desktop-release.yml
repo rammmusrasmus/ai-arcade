@@ -2,8 +2,9 @@ name: Desktop release
 
 # Tag a release to build + publish the desktop apps:
 #   git tag v0.2.0 && git push --tags
-# Produces installers for Windows / macOS / Linux and attaches them to a GitHub
-# Release.
+# Produces installers for Windows / macOS / Linux and publishes them, with the
+# latest*.yml update metadata, to a GitHub Release. Installed apps auto-update
+# from the newest (non-prerelease) release.
 
 on:
   push:
@@ -77,11 +78,24 @@ jobs:
             apps/desktop/release/latest*.yml
           if-no-files-found: warn
 
-      - name: Attach to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+  # One job publishes everything, so the three platform builds don't race to
+  # create the same release.
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            apps/desktop/release/*.exe
-            apps/desktop/release/*.dmg
-            apps/desktop/release/*.AppImage
+            dist/*.exe
+            dist/*.dmg
+            dist/*.AppImage
+            dist/*.blockmap
+            dist/latest*.yml

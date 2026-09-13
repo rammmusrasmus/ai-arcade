@@ -1,24 +1,21 @@
 #!/usr/bin/env node
 /**
- * Rebuild the desktop app and publish it for auto-update.
+ * Rebuild the Windows desktop app locally.
  *
- *   node scripts/pack-desktop.mjs               # bump patch version, build, publish
+ *   node scripts/pack-desktop.mjs               # bump patch version, build
  *   node scripts/pack-desktop.mjs --keep-version
  *   node scripts/pack-desktop.mjs --set-version 0.3.0
  *
  * Produces (in apps/desktop/release):
  *   - AI-Arcade-Setup-<ver>.exe            NSIS installer (what friends install)
- *   - latest.yml + *.blockmap              electron-updater feed metadata
  *   - AI-Arcade-<ver>-win-x64.zip          portable fallback (no auto-update)
  *
  * and copies:
- *   - latest.yml / Setup .exe / .blockmap  -> apps/api/data/storage/public/updates/
- *   - the portable zip                     -> apps/api/data/storage/public/downloads/
+ *   - the installer + portable zip         -> apps/api/data/storage/public/downloads/
  *   - win-unpacked                         -> %LOCALAPPDATA%\Programs\AI Arcade
  *
- * The running app fetches <its Server URL>/files/updates/latest.yml on launch, so
- * once your friend has installed AI-Arcade-Setup-*.exe once, every `pack:desktop`
- * you run reaches them on their next relaunch.
+ * This does NOT ship an update: installed apps auto-update from GitHub Releases,
+ * which the desktop-release workflow publishes when you push a v* tag.
  *
  * NOTE: building the NSIS installer on Windows needs **Developer Mode ON**
  * (Settings -> Privacy & security -> For developers) or an elevated terminal —
@@ -36,7 +33,6 @@ const pkgPath = join(desktop, "package.json");
 const release = join(desktop, "release");
 const unpacked = join(release, "win-unpacked");
 
-const updatesDir = join(repo, "apps", "api", "data", "storage", "public", "updates");
 const downloadsDir = join(repo, "apps", "api", "data", "storage", "public", "downloads");
 const installedDir = join(process.env.LOCALAPPDATA ?? "", "Programs", "AI Arcade");
 
@@ -108,7 +104,7 @@ if (step("electron-vite build", "npx", ["electron-vite", "build"]) !== 0) {
   process.exit(1);
 }
 
-/* ---------- 2. NSIS installer + update feed ---------- */
+/* ---------- 2. NSIS installer ---------- */
 ensureWinCodeSign();
 
 const setupExe = join(release, `AI-Arcade-Setup-${version}.exe`);
@@ -146,17 +142,10 @@ mkdirSync(downloadsDir, { recursive: true });
 copyFileSync(zipPath, join(downloadsDir, "AI-Arcade-win-x64.zip"));
 
 if (haveInstaller) {
-  mkdirSync(updatesDir, { recursive: true });
-  for (const f of ["latest.yml", `AI-Arcade-Setup-${version}.exe`, `AI-Arcade-Setup-${version}.exe.blockmap`]) {
-    const src = join(release, f);
-    if (existsSync(src)) copyFileSync(src, join(updatesDir, f));
-  }
   copyFileSync(setupExe, join(downloadsDir, "AI-Arcade-Setup.exe"));
-  console.log(`\n✓ update feed published -> ${updatesDir}`);
-  console.log(`  friends on an older version auto-update on next launch.`);
 } else {
   console.log(`\n⚠ NSIS installer was NOT produced (likely Windows symlink privilege).`);
-  console.log(`  Auto-update feed NOT published. Portable zip is still updated.`);
+  console.log(`  Portable zip is still updated.`);
   console.log(`  Fix: enable Developer Mode (Settings > Privacy & security > For developers)`);
   console.log(`  or run this from an elevated terminal, then re-run.`);
 }
@@ -180,5 +169,4 @@ console.log(`               : /files/downloads/AI-Arcade-win-x64.zip`);
 if (haveInstaller) {
   console.log(`  installer    : ${setupExe}`);
   console.log(`               : /files/downloads/AI-Arcade-Setup.exe`);
-  console.log(`  update feed  : /files/updates/latest.yml`);
 }
