@@ -1,8 +1,26 @@
 import { eq } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { users, type UserRow } from "../db/schema.js";
+import { normalizeDisplayName } from "../lib/displayName.js";
 import { id } from "../lib/ids.js";
 import { roleForEmail } from "./index.js";
+
+/**
+ * Finds a free display name starting from `base`, appending "2", "3", ...
+ * when it's taken. Used for OAuth/dev-login, which have no interactive step
+ * to ask the person for a different name up front — they can rename later.
+ */
+async function uniqueDisplayName(base: string): Promise<{ displayName: string; displayNameNormalized: string }> {
+  let candidate = base;
+  for (let n = 2; n <= 50; n++) {
+    const normalized = normalizeDisplayName(candidate);
+    const taken = await db.select().from(users).where(eq(users.displayNameNormalized, normalized)).get();
+    if (!taken) return { displayName: candidate, displayNameNormalized: normalized };
+    candidate = `${base}${n}`;
+  }
+  const normalized = normalizeDisplayName(candidate);
+  return { displayName: candidate, displayNameNormalized: normalized };
+}
 
 export interface UpsertUserInput {
   email: string;
@@ -27,7 +45,11 @@ export async function upsertUser(input: UpsertUserInput): Promise<UserRow> {
     }
     if (input.githubId && input.githubId !== existing.githubId) patch.githubId = input.githubId;
     if (role !== existing.role) patch.role = role;
-    if (!existing.displayName && input.displayName) patch.displayName = input.displayName;
+    if (!existing.displayName && input.displayName) {
+      const unique = await uniqueDisplayName(input.displayName);
+      patch.displayName = unique.displayName;
+      patch.displayNameNormalized = unique.displayNameNormalized;
+    }
     if (Object.keys(patch).length > 0) {
       await db.update(users).set(patch).where(eq(users.id, existing.id));
       return { ...existing, ...patch };
@@ -36,10 +58,12 @@ export async function upsertUser(input: UpsertUserInput): Promise<UserRow> {
   }
 
   const now = Date.now();
+  const unique = await uniqueDisplayName(input.displayName || email.split("@")[0]!);
   const row: UserRow = {
     id: id("user"),
     email,
-    displayName: input.displayName || email.split("@")[0]!,
+    displayName: unique.displayName,
+    displayNameNormalized: unique.displayNameNormalized,
     avatarUrl: input.avatarUrl ?? null,
     passwordHash: null,
     // Reached via GitHub OAuth or the local dev-login bypass — both already

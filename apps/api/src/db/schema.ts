@@ -20,6 +20,8 @@ export const users = sqliteTable(
     id: text("id").primaryKey(),
     email: text("email").notNull(),
     displayName: text("display_name").notNull(),
+    /** trim().toLowerCase() of displayName, collapsed whitespace — enforces one name per person. */
+    displayNameNormalized: text("display_name_normalized"),
     avatarUrl: text("avatar_url"),
     /** scrypt hash for email/password accounts; null for OAuth / dev-login users. */
     passwordHash: text("password_hash"),
@@ -35,6 +37,7 @@ export const users = sqliteTable(
   (t) => ({
     emailUq: uniqueIndex("users_email_uq").on(t.email),
     githubUq: uniqueIndex("users_github_uq").on(t.githubId),
+    displayNameUq: uniqueIndex("users_display_name_uq").on(t.displayNameNormalized),
   }),
 );
 

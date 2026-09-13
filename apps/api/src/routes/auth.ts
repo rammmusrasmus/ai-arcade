@@ -39,6 +39,7 @@ import {
 import { db } from "../db/index.js";
 import { users } from "../db/schema.js";
 import { env } from "../env.js";
+import { normalizeDisplayName } from "../lib/displayName.js";
 import { badRequest, conflict, forbidden, notFound, unauthorized } from "../lib/errors.js";
 import { id } from "../lib/ids.js";
 import { checkRateLimit, rateLimit } from "../lib/rateLimit.js";
@@ -97,10 +98,20 @@ export async function authRoutes(app: FastifyInstance) {
         const existing = await db.select().from(users).where(eq(users.email, email)).get();
         if (existing) throw conflict("An account with that email already exists");
 
+        const displayName = input.displayName.trim();
+        const displayNameNormalized = normalizeDisplayName(displayName);
+        const nameTaken = await db
+          .select()
+          .from(users)
+          .where(eq(users.displayNameNormalized, displayNameNormalized))
+          .get();
+        if (nameTaken) throw conflict("That display name is already taken");
+
         const row = {
           id: id("user"),
           email,
-          displayName: input.displayName.trim(),
+          displayName,
+          displayNameNormalized,
           avatarUrl: null,
           passwordHash: await hashPassword(input.password),
           emailVerifiedAt: null,
@@ -204,7 +215,20 @@ export async function authRoutes(app: FastifyInstance) {
     const user = requireUser(req);
     const input = UpdateProfileInput.parse(req.body);
     const patch: Record<string, unknown> = {};
-    if (input.displayName !== undefined) patch.displayName = input.displayName.trim();
+    if (input.displayName !== undefined) {
+      const displayName = input.displayName.trim();
+      const displayNameNormalized = normalizeDisplayName(displayName);
+      if (displayNameNormalized !== normalizeDisplayName(user.displayName)) {
+        const taken = await db
+          .select()
+          .from(users)
+          .where(eq(users.displayNameNormalized, displayNameNormalized))
+          .get();
+        if (taken) throw conflict("That display name is already taken");
+      }
+      patch.displayName = displayName;
+      patch.displayNameNormalized = displayNameNormalized;
+    }
     if (input.bio !== undefined) patch.bio = input.bio.trim() || null;
     if (input.avatarUrl !== undefined) patch.avatarUrl = input.avatarUrl;
     if (Object.keys(patch).length === 0) return { user: toUser(user) };
