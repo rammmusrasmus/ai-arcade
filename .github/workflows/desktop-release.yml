@@ -59,7 +59,8 @@ jobs:
       - name: Build installer
         shell: bash
         env:
-          AI_ARCADE_API_URL: ${{ vars.PUBLIC_API_URL }}
+          # Server new installs connect to (users can still change it in-app).
+          AI_ARCADE_API_URL: ${{ vars.PUBLIC_API_URL || 'https://arcade.xn--lntjekkeren-ggb.dk' }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: |
           cd apps/desktop
