@@ -98,9 +98,9 @@ export const authChallenges = sqliteTable(
 );
 
 /* ------------------------------------------------------------------ */
-/* password_resets — emailed "forgot password" links. Like              */
-/* auth_challenges, only the SHA-256 hash of the token is ever stored;  */
-/* the raw token lives only in the emailed link.                       */
+/* password_resets — "forgot password": a 6-digit code is emailed and    */
+/* entered in the app together with the token the app holds. Like       */
+/* auth_challenges, only SHA-256 hashes of the token and code are stored.*/
 /* ------------------------------------------------------------------ */
 
 export const passwordResets = sqliteTable(
@@ -111,6 +111,8 @@ export const passwordResets = sqliteTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     tokenHash: text("token_hash").notNull(),
+    codeHash: text("code_hash"),
+    attempts: integer("attempts").notNull().default(0),
     expiresAt: integer("expires_at").notNull(),
     consumedAt: integer("consumed_at"),
     userAgent: text("user_agent"),

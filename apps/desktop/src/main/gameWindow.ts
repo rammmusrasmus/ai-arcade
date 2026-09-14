@@ -2,7 +2,21 @@ import { readFile } from "node:fs/promises";
 import { extname, join, normalize, sep } from "node:path";
 import { BrowserWindow, protocol, session, type Session } from "electron";
 import { GAME_PROTOCOL, getWsUrl } from "./config.js";
-import { gameDir, getInstalled, markPlayed } from "./library.js";
+import {
+  downloadPreview,
+  gameDir,
+  getInstalled,
+  markPlayed,
+  PREVIEW_PREFIX,
+  previewDir,
+} from "./library.js";
+
+/** `aa-game://<hostId>/…` — hostId is a gameId (Library) or preview-<versionId>. */
+function rootForHost(hostId: string): string {
+  return hostId.startsWith(PREVIEW_PREFIX)
+    ? previewDir(hostId.slice(PREVIEW_PREFIX.length))
+    : gameDir(hostId);
+}
 
 function relayOriginOf(wsUrl: string): string {
   try {
@@ -39,13 +53,12 @@ const MIME: Record<string, string> = {
   ".txt": "text/plain",
 };
 
-/** Serves `aa-game://<gameId>/<path>` from that game's install directory. */
+/** Serves `aa-game://<hostId>/<path>` from that game's install (or preview) directory. */
 async function gameProtocolHandler(request: Request): Promise<Response> {
   const url = new URL(request.url);
-  const gameId = url.hostname;
   const rel = decodeURIComponent(url.pathname).replace(/^\/+/, "") || "index.html";
 
-  const root = normalize(gameDir(gameId));
+  const root = normalize(rootForHost(url.hostname));
   const filePath = normalize(join(root, rel));
   if (filePath !== root && !filePath.startsWith(root + sep)) {
     return new Response("Forbidden", { status: 403 });
@@ -124,12 +137,31 @@ function showBlockedNotice(win: BrowserWindow, urls: string[]): void {
 export function launchGame(gameId: string): { ok: boolean; error?: string } {
   const installed = getInstalled(gameId);
   if (!installed) return { ok: false, error: "Game is not installed" };
+  markPlayed(gameId);
+  openGameWindow({ hostId: gameId, slug: installed.slug, title: installed.title, entryPath: installed.entryPath });
+  return { ok: true };
+}
 
+/** Download an unreleased build and play it in the same sandbox as installed games. */
+export async function previewBuild(
+  gameId: string,
+  versionId: string,
+  title: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    openGameWindow(await downloadPreview(gameId, versionId, title));
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+function openGameWindow(build: { hostId: string; slug: string; title: string; entryPath: string }): void {
   const wsUrl = getWsUrl();
   const relayOrigin = relayOriginOf(wsUrl);
 
   // A dedicated in-memory session with no shared cookies/storage.
-  const gameSession = session.fromPartition(`game:${gameId}`);
+  const gameSession = session.fromPartition(`game:${build.hostId}`);
   wireGameProtocol(gameSession);
 
   // Requests blocked by the egress filter — surfaced in the game window so a
@@ -157,7 +189,7 @@ export function launchGame(gameId: string): { ok: boolean; error?: string } {
     if (!allowed && /^https?:/i.test(details.url) && !blocked.has(details.url)) {
       blocked.add(details.url);
       console.warn(
-        `[game:${installed.slug}] blocked external request (egress filter): ${details.url}`,
+        `[game:${build.slug}] blocked external request (egress filter): ${details.url}`,
       );
       if (noticeTimer) clearTimeout(noticeTimer);
       noticeTimer = setTimeout(() => showBlockedNotice(win, [...blocked]), 400);
@@ -168,7 +200,7 @@ export function launchGame(gameId: string): { ok: boolean; error?: string } {
   const win = new BrowserWindow({
     width: 1024,
     height: 720,
-    title: installed.title,
+    title: build.title,
     backgroundColor: "#000000",
     autoHideMenuBar: true,
     webPreferences: {
@@ -183,10 +215,8 @@ export function launchGame(gameId: string): { ok: boolean; error?: string } {
   });
 
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-  markPlayed(gameId);
 
-  const qs = new URLSearchParams({ arcade_mp: wsUrl, arcade_game: installed.slug });
-  const entry = installed.entryPath.replace(/^\/+/, "");
-  void win.loadURL(`${GAME_PROTOCOL}://${gameId}/${entry}?${qs.toString()}`);
-  return { ok: true };
+  const qs = new URLSearchParams({ arcade_mp: wsUrl, arcade_game: build.slug });
+  const entry = build.entryPath.replace(/^\/+/, "");
+  void win.loadURL(`${GAME_PROTOCOL}://${build.hostId}/${entry}?${qs.toString()}`);
 }

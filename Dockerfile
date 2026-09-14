@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# AI Arcade — one container: API + multiplayer relay + web app + game files + update feed.
+# AI Arcade server — one container: the desktop app's API + multiplayer relay + stored games.
 # All persistent state lives under /data (mount a volume).
 
 # ---------- builder ----------
@@ -10,15 +10,14 @@ WORKDIR /repo
 COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/api/package.json apps/api/
-COPY apps/web/package.json apps/web/
 COPY apps/desktop/package.json apps/desktop/
+# the desktop workspace's Electron binary is never used on the server
+ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1
 RUN npm ci
 
 COPY . .
-# web build with no baked API URL -> the app talks to whatever origin serves it
 RUN npm run build:shared \
  && npm run build --workspace @ai-arcade/api \
- && VITE_API_URL= npm run build --workspace @ai-arcade/web \
  && npm prune --omit=dev   # drop electron / vite / tsc etc. before we copy node_modules
 
 # ---------- runtime ----------
@@ -27,8 +26,7 @@ ENV NODE_ENV=production \
     API_HOST=0.0.0.0 \
     API_PORT=4000 \
     DATABASE_URL=file:/data/ai-arcade.db \
-    STORAGE_DIR=/data/storage \
-    WEB_DIST=/app/web/dist
+    STORAGE_DIR=/data/storage
 WORKDIR /app/api
 
 # node_modules from the builder = the linux build of @libsql/client and friends
@@ -40,7 +38,6 @@ COPY --from=builder /repo/packages/shared/dist         /app/node_modules/@ai-arc
 COPY --from=builder /repo/apps/api/package.json /app/api/package.json
 COPY --from=builder /repo/apps/api/dist         /app/api/dist
 COPY --from=builder /repo/apps/api/drizzle      /app/api/drizzle
-COPY --from=builder /repo/apps/web/dist         /app/web/dist
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 

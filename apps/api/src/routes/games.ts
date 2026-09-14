@@ -3,10 +3,8 @@ import type { FastifyInstance } from "fastify";
 import { ListGamesQuery, RateGameInput } from "@ai-arcade/shared";
 import { requireUser } from "../auth/index.js";
 import { db } from "../db/index.js";
-import { games, gameVersions, plays, ratings } from "../db/schema.js";
-import { env } from "../env.js";
+import { games, gameVersions, ratings } from "../db/schema.js";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
-import { id } from "../lib/ids.js";
 import { rateLimit } from "../lib/rateLimit.js";
 import {
   findGame,
@@ -14,7 +12,6 @@ import {
   serializeBundle,
   serializeGameRows,
 } from "../lib/gameLoader.js";
-import { storage } from "../storage/index.js";
 import { toGameVersion } from "../serializers.js";
 
 export async function gameRoutes(app: FastifyInstance) {
@@ -143,46 +140,6 @@ export async function gameRoutes(app: FastifyInstance) {
     return rows.map(toGameVersion);
   });
 
-  /* ---------------- play ---------------- */
-
-  app.post("/games/:slugOrId/play", async (req) => {
-    const { slugOrId } = req.params as { slugOrId: string };
-    const bundle = await requireGame(slugOrId);
-    const { game, currentVersion } = bundle;
-    if (game.status !== "approved" || !currentVersion) {
-      throw badRequest("This game is not playable yet");
-    }
-
-    await db.insert(plays).values({
-      id: id("play"),
-      gameId: game.id,
-      userId: req.user?.id ?? null,
-      source: sourceFromReq(req.headers["x-client"]),
-    });
-    await db
-      .update(games)
-      .set({ playCount: sql`${games.playCount} + 1` })
-      .where(eq(games.id, game.id));
-
-    const mpUrl = env.MULTIPLAYER_ENABLED ? env.publicWsUrl : null;
-
-    if (game.playType === "external") {
-      return {
-        url: currentVersion.externalUrl ?? game.externalUrl ?? "",
-        playType: "external" as const,
-        mpUrl,
-      };
-    }
-    const entry = currentVersion.entryPath ?? "index.html";
-    const base = storage.gameFileUrl(game.id, currentVersion.id, entry);
-    // Hand the game its relay endpoint + own slug via query params. Games that
-    // don't do multiplayer simply ignore these.
-    const url = mpUrl
-      ? `${base}${base.includes("?") ? "&" : "?"}arcade_mp=${encodeURIComponent(mpUrl)}&arcade_game=${encodeURIComponent(game.slug)}`
-      : base;
-    return { url, playType: "html" as const, mpUrl };
-  });
-
   /* ---------------- rate ---------------- */
 
   app.post(
@@ -231,9 +188,4 @@ export async function gameRoutes(app: FastifyInstance) {
     };
     },
   );
-}
-
-function sourceFromReq(header: unknown): "web" | "desktop" | "unknown" {
-  if (header === "desktop" || header === "web") return header;
-  return "unknown";
 }

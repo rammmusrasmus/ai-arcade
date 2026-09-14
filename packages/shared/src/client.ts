@@ -6,6 +6,7 @@ import type {
   CreateVersionMeta,
   Friend,
   ForgotPasswordInput,
+  ForgotPasswordResult,
   FriendRequest,
   Game,
   GameVersion,
@@ -49,7 +50,7 @@ export interface ApiClientOptions {
   getToken?: () => string | null | undefined | Promise<string | null | undefined>;
   /** Extra headers added to every request (e.g. a CSRF marker). */
   defaultHeaders?: () => HeadersInit;
-  /** Send cookies (used by the web app; harmless for desktop). */
+  /** Send cookies (harmless for desktop, which authenticates with a bearer token). */
   credentials?: RequestCredentials;
   fetch?: typeof fetch;
 }
@@ -164,12 +165,12 @@ export class ApiClient {
     return this.request("POST", "/auth/change-password", { json: input });
   }
 
-  /** Always resolves the same way, whether or not that email has an account. */
-  forgotPassword(input: ForgotPasswordInput): Promise<{ ok: true }> {
+  /** Emails a reset code if the account exists; always returns a token, so it reveals nothing. */
+  forgotPassword(input: ForgotPasswordInput): Promise<ForgotPasswordResult> {
     return this.request("POST", "/auth/forgot-password", { json: input });
   }
 
-  /** Sets a new password from an emailed reset link's token, and signs out every session. */
+  /** Emailed code + the token from forgotPassword → new password; signs out every session. */
   resetPassword(input: ResetPasswordInput): Promise<{ ok: true }> {
     return this.request("POST", "/auth/reset-password", { json: input });
   }
@@ -203,13 +204,6 @@ export class ApiClient {
 
   getGameVersions(gameId: string): Promise<GameVersion[]> {
     return this.request("GET", `/games/${encodeURIComponent(gameId)}/versions`);
-  }
-
-  /** Records a play and returns the URL to load the game from. */
-  play(
-    gameId: string,
-  ): Promise<{ url: string; playType: "html" | "external"; mpUrl: string | null }> {
-    return this.request("POST", `/games/${encodeURIComponent(gameId)}/play`);
   }
 
   rateGame(gameId: string, input: RateGameInput): Promise<{ ratingAvg: number; ratingCount: number }> {

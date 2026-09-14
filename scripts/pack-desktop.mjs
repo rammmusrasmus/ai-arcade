@@ -10,20 +10,18 @@
  *   - AI-Arcade-Setup-<ver>.exe            NSIS installer (what friends install)
  *   - AI-Arcade-<ver>-win-x64.zip          portable fallback (no auto-update)
  *
- * and copies:
- *   - the installer + portable zip         -> apps/api/data/storage/public/downloads/
- *   - win-unpacked                         -> %LOCALAPPDATA%\Programs\AI Arcade
+ * and mirrors win-unpacked into %LOCALAPPDATA%\Programs\AI Arcade (your own copy).
  *
- * This does NOT ship an update: installed apps auto-update from GitHub Releases,
- * which the desktop-release workflow publishes when you push a v* tag.
+ * This does NOT ship anything to other people: installers and auto-updates come from
+ * GitHub Releases, which the desktop-release workflow publishes when you push a v* tag.
  *
  * NOTE: building the NSIS installer on Windows needs **Developer Mode ON**
  * (Settings -> Privacy & security -> For developers) or an elevated terminal —
  * electron-builder unpacks a symlinked archive. Without it, this script still
- * produces the portable zip but cannot publish an update feed.
+ * produces the portable zip.
  */
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,7 +31,6 @@ const pkgPath = join(desktop, "package.json");
 const release = join(desktop, "release");
 const unpacked = join(release, "win-unpacked");
 
-const downloadsDir = join(repo, "apps", "api", "data", "storage", "public", "downloads");
 const installedDir = join(process.env.LOCALAPPDATA ?? "", "Programs", "AI Arcade");
 
 const args = process.argv.slice(2);
@@ -137,13 +134,8 @@ step("zip win-unpacked", "powershell", [
   `Compress-Archive -Path '${join(unpacked, "*")}' -DestinationPath '${zipPath}' -Force`,
 ], { cwd: repo });
 
-/* ---------- 4. publish into the API's served folders ---------- */
-mkdirSync(downloadsDir, { recursive: true });
-copyFileSync(zipPath, join(downloadsDir, "AI-Arcade-win-x64.zip"));
-
-if (haveInstaller) {
-  copyFileSync(setupExe, join(downloadsDir, "AI-Arcade-Setup.exe"));
-} else {
+/* ---------- 4. report installer status ---------- */
+if (!haveInstaller) {
   console.log(`\n⚠ NSIS installer was NOT produced (likely Windows symlink privilege).`);
   console.log(`  Portable zip is still updated.`);
   console.log(`  Fix: enable Developer Mode (Settings > Privacy & security > For developers)`);
@@ -165,8 +157,4 @@ if (process.env.LOCALAPPDATA) {
 
 console.log(`\nDone. v${version}`);
 console.log(`  portable zip : ${zipPath}`);
-console.log(`               : /files/downloads/AI-Arcade-win-x64.zip`);
-if (haveInstaller) {
-  console.log(`  installer    : ${setupExe}`);
-  console.log(`               : /files/downloads/AI-Arcade-Setup.exe`);
-}
+if (haveInstaller) console.log(`  installer    : ${setupExe}`);

@@ -11,6 +11,7 @@ import {
 import {
   GAME_PROTOCOL_SCHEME,
   launchGame,
+  previewBuild,
   registerGameProtocol,
 } from "./gameWindow.js";
 import { store } from "./store.js";
@@ -97,6 +98,9 @@ ipcMain.handle("library:uninstall", (_e, gameId: string) => {
 });
 
 ipcMain.handle("library:launch", (_e, gameId: string) => launchGame(gameId));
+ipcMain.handle("library:preview", (_e, gameId: string, versionId: string, title: string) =>
+  previewBuild(gameId, versionId, title),
+);
 
 ipcMain.handle("shell:openExternal", (_e, url: string) => {
   if (/^https?:\/\//.test(url)) void shell.openExternal(url);

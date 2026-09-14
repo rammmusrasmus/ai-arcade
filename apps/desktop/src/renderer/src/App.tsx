@@ -195,7 +195,7 @@ export function App() {
           ＋ Upload game
         </button>
         <ServerControl currentUrl={apiUrl} />
-        <AccountControl api={api} user={user} apiUrl={apiUrl} onChange={() => refreshSession(api)} />
+        <AccountControl api={api} user={user} onChange={() => refreshSession(api)} />
       </header>
 
       <UpdateBanner />
@@ -215,7 +215,7 @@ export function App() {
         {tab === "store" ? (
           <StoreView api={api} apiUrl={apiUrl} installed={installed} />
         ) : tab === "review" ? (
-          <ReviewView api={api} apiUrl={apiUrl} />
+          <ReviewView api={api} />
         ) : tab === "friends" ? (
           user ? (
             <FriendsView api={api} me={user} />
@@ -298,11 +298,23 @@ function UpdateBanner() {
 
 /* -------------------------------------------------------------- */
 
-function ReviewView({ api, apiUrl }: { api: ApiClient; apiUrl: string }) {
+function ReviewView({ api }: { api: ApiClient }) {
   const [queue, setQueue] = useState<Game[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [previewingId, setPreviewingId] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
+
+  const preview = async (g: Game, versionId: string) => {
+    setPreviewingId(versionId);
+    setError(null);
+    try {
+      const r = await window.arcade.previewBuild(g.id, versionId, g.title);
+      if (!r.ok) setError(r.error ?? "Couldn't open this build");
+    } finally {
+      setPreviewingId(null);
+    }
+  };
 
   const load = useCallback(async () => {
     setError(null);
@@ -380,14 +392,22 @@ function ReviewView({ api, apiUrl }: { api: ApiClient; apiUrl: string }) {
                     </div>
                   </div>
                 )}
-                <div className="row">
-                  <button
-                    className="btn ghost sm"
-                    onClick={() => window.arcade.openExternal(`${apiUrl}/games/${g.slug}`)}
-                  >
-                    Open in browser ↗
-                  </button>
-                </div>
+                {pv && pv.playType === "html" && (
+                  <div className="row">
+                    <button
+                      className="btn sm"
+                      disabled={previewingId === pv.id}
+                      onClick={() => preview(g, pv.id)}
+                    >
+                      {previewingId === pv.id ? "Downloading…" : `▶ Play this build (v${pv.version})`}
+                    </button>
+                  </div>
+                )}
+                {pv && pv.playType === "external" && (
+                  <p className="stat" style={{ wordBreak: "break-all" }}>
+                    Hosted outside AI Arcade at {pv.externalUrl ?? g.externalUrl ?? "(no URL)"}
+                  </p>
+                )}
                 <textarea
                   className="input"
                   rows={2}
@@ -721,12 +741,10 @@ function ServerControl({ currentUrl }: { currentUrl: string }) {
 function AccountControl({
   api,
   user,
-  apiUrl,
   onChange,
 }: {
   api: ApiClient;
   user: User | null;
-  apiUrl: string;
   onChange: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -745,6 +763,7 @@ function AccountControl({
 
   // set once register/login returns a pending challenge; shows the code step
   const [challenge, setChallenge] = useState<{ loginToken: string; email: string } | null>(null);
+  const [resetting, setResetting] = useState(false);
   const [code, setCode] = useState("");
   const [cooldown, setCooldown] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
@@ -823,7 +842,21 @@ function AccountControl({
           className="card"
           style={{ position: "absolute", right: 0, top: 34, width: 300, padding: 14, zIndex: 20, gap: 10 }}
         >
-          {challenge ? (
+          {resetting ? (
+            <ResetPasswordPanel
+              api={api}
+              initialEmail={email}
+              emailDeliveryConfigured={providers.emailDeliveryConfigured}
+              onCancel={() => setResetting(false)}
+              onDone={(resetEmail) => {
+                setResetting(false);
+                setMode("signin");
+                setEmail(resetEmail);
+                setPassword("");
+                setNotice("Password changed — sign in with your new password.");
+              }}
+            />
+          ) : challenge ? (
             <>
               <div className="stat">
                 Code sent to <b>{challenge.email}</b>.
@@ -911,7 +944,10 @@ function AccountControl({
                   type="button"
                   className="btn ghost sm"
                   style={{ alignSelf: "flex-end" }}
-                  onClick={() => window.arcade.openExternal(`${apiUrl}/forgot-password`)}
+                  onClick={() => {
+                    setError(null);
+                    setResetting(true);
+                  }}
                 >
                   Forgot password?
                 </button>
@@ -923,12 +959,13 @@ function AccountControl({
               >
                 {busy ? "Please wait…" : mode === "register" ? "Create account" : "Sign in"}
               </button>
+              {notice && <div className="stat" style={{ color: "#7ef0b0" }}>{notice}</div>}
             </>
           ) : (
             <div className="stat">Password sign-in is disabled on this server.</div>
           )}
 
-          {!challenge && providers.devLogin && (
+          {!challenge && !resetting && providers.devLogin && (
             <button
               className="btn ghost sm"
               disabled={busy || !email}
@@ -955,6 +992,127 @@ function AccountControl({
         </div>
       )}
     </div>
+  );
+}
+
+function ResetPasswordPanel({
+  api,
+  initialEmail,
+  emailDeliveryConfigured,
+  onCancel,
+  onDone,
+}: {
+  api: ApiClient;
+  initialEmail: string;
+  emailDeliveryConfigured: boolean;
+  onCancel: () => void;
+  onDone: (email: string) => void;
+}) {
+  const [email, setEmail] = useState(initialEmail);
+  const [resetToken, setResetToken] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const requestCode = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.forgotPassword({ email });
+      setResetToken(res.resetToken);
+      setCode("");
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reset = async () => {
+    if (!resetToken) return;
+    if (newPassword !== confirm) {
+      setError("Passwords don't match.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api.resetPassword({ resetToken, code, newPassword });
+      onDone(email.trim());
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <b>Reset your password</b>
+      {!resetToken ? (
+        <>
+          <div className="stat">Enter your account's email and we'll send you a reset code.</div>
+          <input
+            className="input"
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && email && requestCode()}
+          />
+          <button className="btn primary" disabled={busy || !email} onClick={requestCode}>
+            {busy ? "Sending…" : "Send reset code"}
+          </button>
+        </>
+      ) : (
+        <>
+          <div className="stat">
+            If <b>{email}</b> has an account, a 6-digit code is on its way. It expires in 15 minutes.
+            {!emailDeliveryConfigured && " No mail provider configured — check the API server console."}
+          </div>
+          <input
+            className="input"
+            style={{ textAlign: "center", fontSize: 20, letterSpacing: 6 }}
+            inputMode="numeric"
+            maxLength={6}
+            placeholder="000000"
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+          />
+          <input
+            className="input"
+            type="password"
+            placeholder="New password (min 8)"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+          />
+          <input
+            className="input"
+            type="password"
+            placeholder="Confirm new password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && reset()}
+          />
+          <button
+            className="btn primary"
+            disabled={busy || code.length !== 6 || newPassword.length < 8 || !confirm}
+            onClick={reset}
+          >
+            {busy ? "Saving…" : "Set new password"}
+          </button>
+          <button className="btn ghost sm" disabled={busy} onClick={requestCode}>
+            Send a new code
+          </button>
+        </>
+      )}
+      <button className="btn ghost sm" style={{ alignSelf: "flex-start" }} onClick={onCancel}>
+        ← Back to sign in
+      </button>
+      {error && <div className="error">{error}</div>}
+    </>
   );
 }
 

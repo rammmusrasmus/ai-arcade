@@ -1,6 +1,4 @@
-import { existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
@@ -71,23 +69,16 @@ export async function buildApp(): Promise<FastifyInstance> {
     },
   });
 
-  // Static: extracted game bundles + uploaded images, served at /files.
+  // Only uploaded images (covers, screenshots, avatars) are served. Games are played
+  // inside the desktop app from the bundle download, so extracted game files are never
+  // served over HTTP — an uploaded, even unapproved, build can't load from this domain.
   await app.register(fastifyStatic, {
-    root: storage.publicRoot(),
-    prefix: "/files/",
+    root: join(storage.publicRoot(), "images"),
+    prefix: "/files/images/",
     index: false,
-    setHeaders(res, path) {
+    setHeaders(res) {
       res.setHeader("x-content-type-options", "nosniff");
       res.setHeader("access-control-allow-origin", "*");
-      const isGameAsset = path.replace(/\\/g, "/").includes("/public/games/");
-      if (isGameAsset) {
-        // Force every game document into an opaque origin so it cannot make
-        // credentialed same-origin calls back to this API.
-        res.setHeader(
-          "content-security-policy",
-          "sandbox allow-scripts allow-pointer-lock allow-downloads allow-modals",
-        );
-      }
     },
   });
 
@@ -131,28 +122,6 @@ export async function buildApp(): Promise<FastifyInstance> {
     await multiplayerRoutes(api);
     await friendRoutes(api);
   });
-
-  // Optionally serve the built web app (apps/web/dist) from this origin, so one
-  // URL / tunnel covers browsing, uploading, moderation, games and the relay.
-  const webDist =
-    process.env.WEB_DIST ||
-    resolve(dirname(fileURLToPath(import.meta.url)), "../../web/dist");
-  if (existsSync(join(webDist, "index.html"))) {
-    await app.register(fastifyStatic, {
-      root: webDist,
-      prefix: "/",
-      decorateReply: false,
-      wildcard: false,
-    });
-    app.setNotFoundHandler((req, reply) => {
-      const wantsHtml = (req.headers.accept ?? "").includes("text/html");
-      if (req.method === "GET" && wantsHtml) {
-        return reply.type("text/html").sendFile("index.html", webDist);
-      }
-      reply.code(404).send({ error: { code: "not_found", message: "Not found" } });
-    });
-    app.log.info(`serving web app from ${webDist}`);
-  }
 
   return app;
 }

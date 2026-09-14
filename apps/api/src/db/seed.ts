@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db, libsql } from "./index.js";
 import { games, gameVersions, reviewEvents, users } from "./schema.js";
 import { env } from "../env.js";
+import { normalizeDisplayName } from "../lib/displayName.js";
 import { id } from "../lib/ids.js";
 import { inspectBundle, extractBundle } from "../lib/bundle.js";
 import { slugify } from "../lib/slug.js";
@@ -30,6 +31,7 @@ async function upsertUserRow(input: {
     id: id("user"),
     email: input.email,
     displayName: input.displayName,
+    displayNameNormalized: normalizeDisplayName(input.displayName),
     avatarUrl: null,
     role: input.role,
     githubId: null,

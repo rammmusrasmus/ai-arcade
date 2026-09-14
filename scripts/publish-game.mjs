@@ -166,8 +166,7 @@ if (opt.approve) {
     }),
   );
   console.log(`\n✓ live: ${g.title} v${g.currentVersion.version}`);
-  console.log(`  play: ${api}/games/${slug}`);
-  console.log(`  desktop players: Library → Update to v${g.currentVersion.version}`);
+  console.log(`  players: Library → Update to v${g.currentVersion.version}`);
 } else {
-  console.log(`\n✓ submitted for review (pending). Approve it at ${api.replace(/:\d+$/, ":5173")}/moderation`);
+  console.log(`\n✓ submitted for review (pending). Approve it in the desktop app's Review tab.`);
 }

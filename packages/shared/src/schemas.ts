@@ -147,8 +147,20 @@ export const ForgotPasswordInput = z.object({
 });
 export type ForgotPasswordInput = z.infer<typeof ForgotPasswordInput>;
 
+/** Returned for every email, known or not; the code only arrives if there's an account. */
+export const ForgotPasswordResult = z.object({
+  ok: z.literal(true),
+  resetToken: z.string(),
+  expiresInSeconds: z.number().int().positive(),
+});
+export type ForgotPasswordResult = z.infer<typeof ForgotPasswordResult>;
+
 export const ResetPasswordInput = z.object({
-  token: z.string().min(1),
+  resetToken: z.string().min(1),
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, "6-digit code"),
   newPassword: Password,
 });
 export type ResetPasswordInput = z.infer<typeof ResetPasswordInput>;

@@ -194,9 +194,9 @@ export async function authRoutes(app: FastifyInstance) {
         // Also cap by the target email itself so one victim can't be spammed
         // from many different IPs.
         checkRateLimit(`forgot-password-email:${normalized}`, 5, 60 * 60_000);
-        await requestPasswordReset(normalized, req.headers["user-agent"]);
         // Same response whether or not the account exists — no enumeration.
-        return { ok: true as const };
+        const result = await requestPasswordReset(normalized, req.headers["user-agent"]);
+        return { ok: true as const, ...result };
       },
     );
 
@@ -204,8 +204,8 @@ export async function authRoutes(app: FastifyInstance) {
       "/auth/reset-password",
       { preHandler: rateLimit("reset-password", 20, 15 * 60_000) },
       async (req) => {
-        const { token, newPassword } = ResetPasswordInput.parse(req.body);
-        await resetPassword(token, newPassword);
+        const { resetToken, code, newPassword } = ResetPasswordInput.parse(req.body);
+        await resetPassword(resetToken, code, newPassword);
         return { ok: true as const };
       },
     );

@@ -25,6 +25,10 @@ const libRoot = () => {
 const manifestPath = () => join(libRoot(), "games.json");
 export const gameDir = (gameId: string) => join(libRoot(), gameId);
 
+/** Unreleased builds opened for review live here, outside the Library. */
+export const PREVIEW_PREFIX = "preview-";
+export const previewDir = (versionId: string) => join(app.getPath("userData"), "previews", versionId);
+
 function readManifest(): InstalledGame[] {
   try {
     if (!existsSync(manifestPath())) return [];
@@ -111,6 +115,37 @@ export async function installGame(gameId: string): Promise<InstalledGame> {
   list.push(entry);
   writeManifest(list);
   return entry;
+}
+
+export interface PreviewBuild {
+  hostId: string;
+  slug: string;
+  title: string;
+  entryPath: string;
+}
+
+/**
+ * Download a specific (possibly unapproved) version into the previews folder, so a
+ * moderator or the author can play it without it touching the Library.
+ */
+export async function downloadPreview(gameId: string, versionId: string, title: string): Promise<PreviewBuild> {
+  const token = store.getToken();
+  const res = await fetch(
+    `${getApiUrl()}/games/${encodeURIComponent(gameId)}/versions/${encodeURIComponent(versionId)}/download`,
+    { headers: { ...(token ? { authorization: `Bearer ${token}` } : {}), "x-client": "desktop" } },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Download failed (${res.status}): ${text.slice(0, 200)}`);
+  }
+  const buffer = Buffer.from(await res.arrayBuffer());
+  safeExtract(buffer, previewDir(versionId));
+  return {
+    hostId: `${PREVIEW_PREFIX}${versionId}`,
+    slug: res.headers.get("x-game-slug") ?? gameId,
+    title: `${title} (review build v${res.headers.get("x-game-version") ?? "?"})`,
+    entryPath: res.headers.get("x-entry-path") ?? "index.html",
+  };
 }
 
 export function uninstallGame(gameId: string): void {

@@ -1,13 +1,15 @@
-# Deploying AI Arcade (always-on)
+# Deploying the AI Arcade server (always-on)
 
-One container runs everything: the API, the multiplayer relay (`/mp`), the web app,
-game files, and the desktop auto-update feed. All state lives in `./data` (SQLite DB +
-uploaded bundles + images). Point a domain at a Linux server with Docker and you're done.
+AI Arcade is a desktop app; the server is only its backend. One container runs the API, the
+multiplayer relay (`/mp`) and the stored game bundles — there is no website. All state lives
+in `./data` (SQLite DB + uploaded bundles + images). Point a domain at a Linux server with
+Docker and you're done. The domain is for HTTPS between the app and the server; nobody visits
+it in a browser.
 
 ```
-                        ┌──────────── your server ────────────┐
-  players / uploaders ──►  Caddy (HTTPS)  ──►  app :4000  ──►  ./data  (db + game files)
-  desktop app ──────────►  wss://…/mp (same box, same port)
+                   ┌──────────────── your server ────────────────┐
+  desktop app ───────►  Caddy (HTTPS)  ──►  api :4000  ──►  ./data  (db + bundles + images)
+  (REST + wss://…/mp) └─────────────────────────────────────────────┘
 ```
 
 ---
@@ -23,7 +25,7 @@ Caddy can get a TLS certificate.)
 # on the server
 git clone <your-repo> ai-arcade && cd ai-arcade      # or: scp the folder over
 cp .env.production.example .env
-nano .env                                            # fill in DOMAIN, AUTH_SECRET, ADMIN_EMAILS, PUBLIC_*, SMTP_*
+nano .env                                            # fill in DOMAIN, AUTH_SECRET, ADMIN_EMAILS, SIGNUP_ALLOWED_EMAILS, PUBLIC_*, SMTP_*
 
 # generate AUTH_SECRET:
 node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
@@ -44,13 +46,10 @@ Caddy fetches a Let's Encrypt certificate on first request (give it ~30s). Then:
 > Don't leave that exposed publicly — password auth needs HTTPS.
 
 
-- `https://games.example.com` — the web app (browse, register, upload, play)
 - `https://games.example.com/health` — should return `{"ok":true}`
-- The account whose email is in `ADMIN_EMAILS` is an admin — it gets the **Review** tab and
-  `/moderation` to approve submissions.
-
-**Set a password on your admin account:** register/sign in at `/login`, then `/profile` →
-"Set a password" (dev-login is off in production).
+- In the desktop app, set **🌐 Server** to `https://games.example.com` and **Register** with
+  the email from `ADMIN_EMAILS`. After confirming the emailed code, that account is an admin
+  and sees the **Review** tab.
 
 ### Updating the server later
 
@@ -90,8 +89,8 @@ so the Caddy compose stack above isn't needed.
 - **Port:** `4000` (healthcheck: `GET /health`).
 - **Branch:** `main`.
 - **Persistent volume:** mount one at `/data` (SQLite DB + uploads). Run **one** replica.
-- **Env vars:** `AUTH_SECRET` (32+ chars), `PUBLIC_API_URL` and `WEB_ORIGIN` (both the public
-  `https://` URL) are required; set `ADMIN_EMAILS`, `CORS_ORIGINS=*` and `SMTP_*` too. Set
+- **Env vars:** `AUTH_SECRET` (32+ chars) and `PUBLIC_API_URL` (the public `https://` URL)
+  are required; set `ADMIN_EMAILS`, `CORS_ORIGINS=*` and `SMTP_*` too. Set
   `SIGNUP_ALLOWED_EMAILS` to limit who can create an account (empty = open signup). Don't set
   `DATABASE_URL` / `STORAGE_DIR` — the image already points them at `/data`.
 - **WebSockets:** `/mp` holds long-lived connections — no short idle timeouts on it.

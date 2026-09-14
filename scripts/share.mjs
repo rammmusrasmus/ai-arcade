@@ -99,17 +99,11 @@ async function main() {
     API_PORT: String(PORT),
     PUBLIC_API_URL: publicUrl,
     PUBLIC_WS_URL: wsUrl,
-    WEB_ORIGIN: `${publicUrl},http://127.0.0.1:5173`,
     CORS_ORIGINS: "*",
   };
 
   log("building shared package…");
   await run("npm", ["run", "build:shared"], {});
-
-  log("building the web app (served same-origin behind the tunnel)…");
-  await run("npm", ["run", "build", "--workspace", "@ai-arcade/web"], {
-    env: { ...process.env, VITE_API_URL: "" },
-  });
 
   log("starting API bound to 0.0.0.0 with public URL", publicUrl);
   // Run the server directly (not `tsx watch`) — the watcher is unnecessary for

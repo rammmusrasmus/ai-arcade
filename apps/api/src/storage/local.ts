@@ -6,8 +6,8 @@ import type { Storage } from "./index.js";
 /**
  * Filesystem layout under <root>:
  *   bundles/<versionId>.zip        original uploads (private)
- *   public/games/<gameId>/<versionId>/...   extracted, served at /files
- *   public/images/<imageId>.<ext>          uploaded images, served at /files
+ *   public/games/<gameId>/<versionId>/...   extracted for validation (not served)
+ *   public/images/<imageId>.<ext>          uploaded images, served at /files/images
  */
 export class LocalStorage implements Storage {
   private readonly root: string;
@@ -41,11 +41,6 @@ export class LocalStorage implements Storage {
 
   extractedDir(gameId: string, versionId: string): string {
     return join(this.root, "public", "games", gameId, versionId);
-  }
-
-  gameFileUrl(gameId: string, versionId: string, relPath: string): string {
-    const clean = relPath.replace(/^\/+/, "").split("/").map(encodeURIComponent).join("/");
-    return `${this.publicUrlBase}/files/games/${gameId}/${versionId}/${clean}`;
   }
 
   async removeExtracted(gameId: string, versionId: string): Promise<void> {

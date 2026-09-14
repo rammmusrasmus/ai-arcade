@@ -53,6 +53,9 @@ const arcade = {
     ipcRenderer.invoke("library:uninstall", gameId),
   launch: (gameId: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke("library:launch", gameId),
+  /** Play an unreleased version (moderators / the author) without adding it to the Library. */
+  previewBuild: (gameId: string, versionId: string, title: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke("library:preview", gameId, versionId, title),
 
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke("shell:openExternal", url),
 
