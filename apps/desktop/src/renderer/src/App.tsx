@@ -235,6 +235,9 @@ export function App() {
 function UpdateBanner() {
   const [s, setS] = useState<UpdateState>({ state: "idle" });
   const [dismissed, setDismissed] = useState(false);
+  // version the user chose "Later" for — the popup won't reopen for it, the bar stays
+  const [postponed, setPostponed] = useState<string | null>(null);
+  const [installing, setInstalling] = useState(false);
 
   useEffect(() => {
     window.arcade.getUpdateState().then(setS).catch(() => undefined);
@@ -244,26 +247,65 @@ function UpdateBanner() {
     });
   }, []);
 
+  const install = () => {
+    setInstalling(true);
+    void window.arcade.installUpdate();
+  };
+
   if (s.state === "ready") {
     return (
-      <div
-        className="row"
-        style={{
-          justifyContent: "center",
-          gap: 12,
-          padding: "8px 14px",
-          background: "linear-gradient(90deg,#1c2b1f,#14231a)",
-          borderBottom: "1px solid #1f5a3d",
-          fontSize: 13,
-        }}
-      >
-        <span>
-          <b>Update {s.version}</b> downloaded.
-        </span>
-        <button className="btn primary sm" onClick={() => window.arcade.installUpdate()}>
-          Restart &amp; update
-        </button>
-      </div>
+      <>
+        {postponed !== s.version && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,.55)",
+              zIndex: 200,
+              display: "grid",
+              placeItems: "center",
+              padding: 16,
+            }}
+          >
+            <div
+              className="card"
+              style={{ width: 380, maxWidth: "100%", padding: 22, display: "flex", flexDirection: "column", gap: 12 }}
+            >
+              <h3 style={{ margin: 0, fontSize: 17 }}>A new version of AI Arcade is ready</h3>
+              <p className="stat" style={{ margin: 0, fontSize: 13 }}>
+                Version <b>{s.version}</b> has been downloaded. AI Arcade will close, update itself
+                and open again — it only takes a moment.
+              </p>
+              <div className="row" style={{ justifyContent: "flex-end", marginTop: 4 }}>
+                <button className="btn ghost" disabled={installing} onClick={() => setPostponed(s.version)}>
+                  Later
+                </button>
+                <button className="btn primary" disabled={installing} onClick={install}>
+                  {installing ? "Updating…" : "Update now"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        <div
+          className="row"
+          style={{
+            justifyContent: "center",
+            gap: 12,
+            padding: "8px 14px",
+            background: "linear-gradient(90deg,#1c2b1f,#14231a)",
+            borderBottom: "1px solid #1f5a3d",
+            fontSize: 13,
+          }}
+        >
+          <span>
+            <b>Update {s.version}</b> is ready.
+          </span>
+          <button className="btn primary sm" disabled={installing} onClick={install}>
+            {installing ? "Updating…" : "Restart & update"}
+          </button>
+        </div>
+      </>
     );
   }
 

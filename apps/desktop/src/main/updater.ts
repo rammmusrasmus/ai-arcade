@@ -22,7 +22,11 @@ export type UpdateState =
   | { state: "unsupported" };
 
 let last: UpdateState = { state: "idle" };
+let downloadingVersion: string | undefined;
 let getWindow: () => BrowserWindow | null = () => null;
+
+/** Shown to users instead of electron-updater's raw HTTP/stack text (that goes to the log). */
+const FRIENDLY_ERROR = "Couldn't check for updates right now. AI Arcade will try again later.";
 
 function emit(next: UpdateState) {
   last = next;
@@ -50,19 +54,21 @@ export function initAutoUpdater(windowGetter: () => BrowserWindow | null): void 
   autoUpdater.logger = null;
 
   autoUpdater.on("checking-for-update", () => emit({ state: "checking" }));
-  autoUpdater.on("update-available", (info) =>
-    emit({ state: "downloading", version: info.version }),
-  );
+  autoUpdater.on("update-available", (info) => {
+    downloadingVersion = info.version;
+    emit({ state: "downloading", version: info.version });
+  });
   autoUpdater.on("update-not-available", () => emit({ state: "idle" }));
   autoUpdater.on("download-progress", (p) =>
-    emit({ state: "downloading", percent: Math.round(p.percent) }),
+    emit({ state: "downloading", version: downloadingVersion, percent: Math.round(p.percent) }),
   );
   autoUpdater.on("update-downloaded", (info) =>
     emit({ state: "ready", version: info.version }),
   );
-  autoUpdater.on("error", (err) =>
-    emit({ state: "error", message: err?.message ?? String(err) }),
-  );
+  autoUpdater.on("error", (err) => {
+    debug("updater error:", err instanceof Error ? err.stack : err);
+    if (last.state !== "ready") emit({ state: "error", message: FRIENDLY_ERROR });
+  });
 
   void checkForUpdates();
   // re-check every 6h while the app stays open
@@ -71,17 +77,20 @@ export function initAutoUpdater(windowGetter: () => BrowserWindow | null): void 
 
 export async function checkForUpdates(): Promise<UpdateState> {
   if (!app.isPackaged && !forced) return { state: "unsupported" };
+  // An update is already downloaded and waiting — a re-check would only hide the prompt.
+  if (last.state === "ready") return last;
   try {
     const r = await autoUpdater.checkForUpdates();
     debug("checkForUpdates resolved", r?.updateInfo?.version ?? "(none)");
   } catch (err) {
     debug("check failed:", err instanceof Error ? err.stack : err);
-    emit({ state: "error", message: err instanceof Error ? err.message : String(err) });
+    emit({ state: "error", message: FRIENDLY_ERROR });
   }
   return last;
 }
 
 export function installUpdateNow(): void {
   if (last.state !== "ready") return;
-  setImmediate(() => autoUpdater.quitAndInstall());
+  // Silent install (no installer wizard), then relaunch the updated app — one click, like Steam.
+  setImmediate(() => autoUpdater.quitAndInstall(true, true));
 }
