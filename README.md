@@ -5,7 +5,8 @@ upload a game they built with Claude (or any other AI tool), and — once a mode
 approves it — it goes live in the store for everyone to install and play.
 
 AI Arcade is an **installed app, not a website.** The server is only its backend: accounts,
-the catalog, stored game bundles, login emails and the multiplayer relay. The platform
+the catalog, stored game bundles, login emails and the multiplayer relay — plus a one-page
+download page at `/` (`docker/site/index.html`) so people can get the app. The platform
 **hosts and distributes** games; it does not create them.
 
 ```

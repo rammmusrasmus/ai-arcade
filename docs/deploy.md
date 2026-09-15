@@ -1,10 +1,11 @@
 # Deploying the AI Arcade server (always-on)
 
 AI Arcade is a desktop app; the server is only its backend. One container runs the API, the
-multiplayer relay (`/mp`) and the stored game bundles — there is no website. All state lives
-in `./data` (SQLite DB + uploaded bundles + images). Point a domain at a Linux server with
-Docker and you're done. The domain is for HTTPS between the app and the server; nobody visits
-it in a browser.
+multiplayer relay (`/mp`) and the stored game bundles. All state lives in `./data` (SQLite DB +
+uploaded bundles + images). Point a domain at a Linux server with Docker and you're done. The
+domain is for HTTPS between the app and the server; the only thing a browser sees there is a
+one-page **download page** at `/` (`docker/site/index.html`, served by Caddy) whose button
+always points to the newest installer on GitHub Releases.
 
 ```
                    ┌──────────────── your server ────────────────┐

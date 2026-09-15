@@ -1,5 +1,5 @@
-# Terminates HTTPS for AI Arcade and proxies everything (including the
-# /mp WebSocket relay) to the app container.
+# Terminates HTTPS for AI Arcade. The exact path "/" is the download page for the
+# desktop app; everything else (API, /mp WebSocket relay) goes to the app container.
 
 {$DOMAIN} {
 	encode zstd gzip
@@ -9,8 +9,16 @@
 		max_size 80MB
 	}
 
-	reverse_proxy app:4000 {
-		# don't buffer the relay / downloads
-		flush_interval -1
+	handle / {
+		root * /srv/site
+		rewrite * /index.html
+		file_server
+	}
+
+	handle {
+		reverse_proxy app:4000 {
+			# don't buffer the relay / downloads
+			flush_interval -1
+		}
 	}
 }

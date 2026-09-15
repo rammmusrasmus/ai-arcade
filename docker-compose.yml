@@ -32,6 +32,7 @@ services:
       DOMAIN: ${DOMAIN:?set DOMAIN in .env}
     volumes:
       - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./docker/site:/srv/site:ro   # download page served at "/"
       - caddy-data:/data
       - caddy-config:/config
 
