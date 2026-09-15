@@ -15,8 +15,7 @@ export interface InstalledGame {
 interface ServerConfig {
   apiUrl: string;
   wsUrl: string;
-  isDefault: boolean;
-  serverOverride?: string | null;
+  appVersion: string;
 }
 
 export type UpdateState =
@@ -39,8 +38,6 @@ export interface PickedBundle {
 
 const arcade = {
   getConfig: (): Promise<ServerConfig> => ipcRenderer.invoke("config:get"),
-  setServerUrl: (url: string | null): Promise<ServerConfig> =>
-    ipcRenderer.invoke("config:setServerUrl", url),
 
   getToken: (): Promise<string | null> => ipcRenderer.invoke("auth:getToken"),
   setToken: (token: string | null): Promise<boolean> =>

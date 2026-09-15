@@ -17,6 +17,7 @@ type Tab = "store" | "library" | "review" | "friends";
 export function App() {
   const [api, setApi] = useState<ApiClient | null>(null);
   const [apiUrl, setApiUrl] = useState("");
+  const [appVersion, setAppVersion] = useState("");
   const [user, setUser] = useState<User | null>(null);
   const [tab, setTab] = useState<Tab>("store");
   const [library, setLibrary] = useState<InstalledGame[]>([]);
@@ -55,6 +56,7 @@ export function App() {
         const client = await makeApi();
         const cfg = await window.arcade.getConfig();
         setApiUrl(cfg.apiUrl);
+        setAppVersion(cfg.appVersion);
         setApi(client);
         const lib = await window.arcade.listLibrary();
         setLibrary(lib);
@@ -129,7 +131,7 @@ export function App() {
             <span className="logo">▶</span> AI Arcade
           </div>
           <div className="spacer" />
-          <ServerControl currentUrl={apiUrl} />
+          <AboutControl version={appVersion} />
         </header>
         <main className="content">
           <div className="empty">
@@ -137,7 +139,10 @@ export function App() {
               Couldn’t reach the server at <b>{apiUrl}</b>.
               {bootError ? <><br />{bootError}</> : null}
             </p>
-            <p className="muted">Use the <b>Server</b> button above to point at the right address, then it reloads.</p>
+            <p className="muted">Check your internet connection, then try again.</p>
+            <button className="btn primary" onClick={() => location.reload()}>
+              Try again
+            </button>
           </div>
         </main>
       </div>
@@ -194,7 +199,7 @@ export function App() {
         >
           ＋ Upload game
         </button>
-        <ServerControl currentUrl={apiUrl} />
+        <AboutControl version={appVersion} />
         <AccountControl api={api} user={user} onChange={() => refreshSession(api)} />
       </header>
 
@@ -507,6 +512,10 @@ function UploadGameModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  // Field hints show once a field has been left, or for every field after a submit attempt.
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [tried, setTried] = useState(false);
+  const touch = (field: string) => () => setTouched((t) => ({ ...t, [field]: true }));
 
   const pick = async (kind: "folder" | "zip") => {
     setError(null);
@@ -517,14 +526,71 @@ function UploadGameModal({
       setError(res.error);
       return;
     }
-    if (kind === "folder" && res.hasEntry === false) {
-      setError("That folder has no index.html — the game needs an HTML entry point.");
+    if (res.hasEntry === false) {
+      const where = res.source ? ` (looked in: ${res.source})` : "";
+      setError(
+        kind === "folder"
+          ? `That folder has no index.html at its top level${where}. Pick the folder that directly contains index.html.`
+          : `That zip has no index.html${where} — the game needs an HTML entry point.`,
+      );
       return;
     }
     setBundle(res);
   };
 
+  // Same limits the server enforces (CreateGameInput in packages/shared).
+  const problems: Partial<Record<"title" | "summary" | "description" | "tags" | "aiTools" | "url" | "bundle", string>> = {};
+  {
+    const t = title.trim();
+    const s = summary.trim();
+    if (t.length === 0) problems.title = "Add a title.";
+    else if (t.length < 3) problems.title = `Title needs at least 3 characters (it has ${t.length}).`;
+    else if (t.length > 80) problems.title = `Title can be at most 80 characters (it has ${t.length}).`;
+
+    if (s.length === 0) problems.summary = "Add a one-line summary of at least 10 characters.";
+    else if (s.length < 10) problems.summary = `Summary needs at least 10 characters (it has ${s.length}).`;
+    else if (s.length > 160) problems.summary = `Summary can be at most 160 characters (it has ${s.length}).`;
+
+    if (description.trim().length > 8000) {
+      problems.description = `Description can be at most 8000 characters (it has ${description.trim().length}).`;
+    }
+
+    const tagList = splitList(tags);
+    const badTag = tagList.find((x) => x.length > 24 || !/^[a-z0-9][a-z0-9- ]*$/i.test(x));
+    if (tagList.length > 12) problems.tags = `Use at most 12 tags (you have ${tagList.length}).`;
+    else if (badTag && badTag.length > 24) problems.tags = `Tag “${badTag}” is too long (max 24 characters).`;
+    else if (badTag) {
+      problems.tags = `Tag “${badTag}” can only use letters a–z, numbers, spaces and hyphens, and must start with a letter or number.`;
+    }
+
+    const toolList = splitList(aiTools);
+    const longTool = toolList.find((x) => x.length > 40);
+    if (toolList.length > 10) problems.aiTools = `List at most 10 AI tools (you have ${toolList.length}).`;
+    else if (longTool) problems.aiTools = `“${longTool.slice(0, 20)}…” is too long (max 40 characters per tool).`;
+
+    if (playType === "external") {
+      let ok = false;
+      try {
+        ok = /^https?:$/.test(new URL(externalUrl.trim()).protocol);
+      } catch {
+        ok = false;
+      }
+      if (!ok) problems.url = "Enter the game's full web address, starting with https://";
+    } else if (!bundle?.zipBase64) {
+      problems.bundle = "Choose your game folder or .zip.";
+    }
+  }
+  const problemCount = Object.keys(problems).length;
+  const show = (field: keyof typeof problems) => (tried || touched[field]) && problems[field];
+  const hint = (field: keyof typeof problems) =>
+    show(field) ? <span style={{ color: "var(--danger)", fontSize: 12 }}>{problems[field]}</span> : null;
+  const fieldStyle = (field: keyof typeof problems) => (show(field) ? { borderColor: "#6b2434" } : undefined);
+
   const submit = async () => {
+    if (problemCount > 0) {
+      setTried(true);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -552,11 +618,6 @@ function UploadGameModal({
       setBusy(false);
     }
   };
-
-  const canSubmit =
-    title.trim().length >= 3 &&
-    summary.trim().length >= 10 &&
-    (playType === "external" ? /^https?:\/\//.test(externalUrl.trim()) : Boolean(bundle?.zipBase64));
 
   return (
     <div
@@ -609,53 +670,81 @@ function UploadGameModal({
               ))}
             </div>
 
-            <label className="stat">
+            <label className="stat" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
               Title
-              <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} />
+              <input
+                className="input"
+                maxLength={80}
+                value={title}
+                style={fieldStyle("title")}
+                onChange={(e) => setTitle(e.target.value)}
+                onBlur={touch("title")}
+              />
+              {hint("title")}
             </label>
-            <label className="stat">
+            <label className="stat" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
               One-line summary
               <input
                 className="input"
                 maxLength={160}
-                placeholder="Shown on the store card (10–160 chars)"
+                placeholder="Shown on the store card (10–160 characters)"
                 value={summary}
+                style={fieldStyle("summary")}
                 onChange={(e) => setSummary(e.target.value)}
+                onBlur={touch("summary")}
               />
+              <span style={{ fontSize: 11, alignSelf: "flex-end" }}>{summary.trim().length} / 160</span>
+              {hint("summary")}
             </label>
-            <label className="stat">
+            <label className="stat" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
               Description (optional)
               <textarea
                 className="input"
                 rows={3}
                 value={description}
+                style={fieldStyle("description")}
                 onChange={(e) => setDescription(e.target.value)}
+                onBlur={touch("description")}
               />
+              {hint("description")}
             </label>
-            <div className="row" style={{ gap: 10 }}>
-              <label className="stat" style={{ flex: 1 }}>
-                Tags (comma-sep)
-                <input className="input" value={tags} onChange={(e) => setTags(e.target.value)} />
+            <div className="row" style={{ gap: 10, alignItems: "flex-start" }}>
+              <label className="stat" style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
+                Tags (comma-separated)
+                <input
+                  className="input"
+                  value={tags}
+                  style={fieldStyle("tags")}
+                  onChange={(e) => setTags(e.target.value)}
+                  onBlur={touch("tags")}
+                />
+                {hint("tags")}
               </label>
-              <label className="stat" style={{ flex: 1 }}>
+              <label className="stat" style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
                 AI tools used
                 <input
                   className="input"
                   value={aiTools}
+                  style={fieldStyle("aiTools")}
                   onChange={(e) => setAiTools(e.target.value)}
+                  onBlur={touch("aiTools")}
                 />
+                {hint("aiTools")}
               </label>
             </div>
 
             {playType === "external" ? (
-              <label className="stat">
+              <label className="stat" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                 Game URL
                 <input
                   className="input"
                   placeholder="https://…"
                   value={externalUrl}
+                  style={fieldStyle("url")}
                   onChange={(e) => setExternalUrl(e.target.value)}
+                  onBlur={touch("url")}
                 />
+                {hint("url")}
               </label>
             ) : (
               <div className="card" style={{ padding: 12, gap: 8, display: "flex", flexDirection: "column" }}>
@@ -684,14 +773,22 @@ function UploadGameModal({
                     )}
                   </div>
                 )}
+                {hint("bundle")}
               </div>
             )}
 
             {error && <div className="error">{error}</div>}
 
-            <button className="btn primary" disabled={busy || !canSubmit} onClick={submit}>
+            <button className="btn primary" disabled={busy} onClick={submit}>
               {busy ? "Submitting…" : "Submit for review"}
             </button>
+            {tried && problemCount > 0 && (
+              <div className="stat" style={{ color: "var(--danger)", textAlign: "center" }}>
+                {problemCount === 1
+                  ? "Fix the field marked in red to submit."
+                  : `Fix the ${problemCount} fields marked in red to submit.`}
+              </div>
+            )}
           </>
         )}
       </div>
@@ -701,77 +798,37 @@ function UploadGameModal({
 
 /* -------------------------------------------------------------- */
 
-function ServerControl({ currentUrl }: { currentUrl: string }) {
+function AboutControl({ version }: { version: string }) {
   const [open, setOpen] = useState(false);
-  const [url, setUrl] = useState(currentUrl);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
 
-  const short = currentUrl.replace(/^https?:\/\//, "");
-
-  async function save(next: string | null) {
-    setBusy(true);
-    setError(null);
-    try {
-      if (next) {
-        // sanity check the URL before committing
-        // eslint-disable-next-line no-new
-        new URL(next);
-      }
-      await window.arcade.setServerUrl(next);
-      location.reload(); // re-boot the renderer against the new server
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Invalid URL");
-      setBusy(false);
-    }
+  function check() {
+    setNote("Checking…");
+    window.arcade.checkForUpdate().then((s) => {
+      if (s.state === "unsupported") setNote("Auto-update needs the installer build.");
+      else if (s.state === "idle") setNote("You're on the latest version.");
+      else if (s.state === "error") setNote(s.message);
+      else setNote("A new version is on its way — you'll be asked to update.");
+    });
   }
 
   return (
     <div style={{ position: "relative" }}>
-      <button className="btn ghost sm" onClick={() => setOpen((o) => !o)} title={currentUrl}>
-        🌐 {short.length > 26 ? short.slice(0, 24) + "…" : short}
+      <button className="btn ghost sm" onClick={() => setOpen((o) => !o)} title="About AI Arcade">
+        v{version}
       </button>
       {open && (
         <div
           className="card"
-          style={{ position: "absolute", right: 0, top: 34, width: 340, padding: 14, zIndex: 30, gap: 10 }}
+          style={{ position: "absolute", right: 0, top: 34, width: 280, padding: 14, zIndex: 30, gap: 10 }}
         >
-          <div className="stat">Server (API + multiplayer relay)</div>
-          <input
-            className="input"
-            placeholder="https://your-server.example.com"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            spellCheck={false}
-          />
-          <div className="stat">
-            Paste the URL your host shared (e.g. a Cloudflare/ngrok tunnel or a deployed
-            server). The relay is the same URL — no second field.
-          </div>
-          <div className="row">
-            <button className="btn primary" disabled={busy || !url.trim()} onClick={() => save(url.trim())}>
-              {busy ? "Reloading…" : "Save & reconnect"}
-            </button>
-            <button className="btn ghost" disabled={busy} onClick={() => save(null)}>
-              Reset to localhost
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <span className="stat">AI Arcade v{version}</span>
+            <button className="btn ghost sm" onClick={check}>
+              Check for updates
             </button>
           </div>
-          {error && <div className="error">{error}</div>}
-          <div className="row" style={{ justifyContent: "space-between", marginTop: 4 }}>
-            <span className="stat">Updates check on launch</span>
-            <button
-              className="btn ghost sm"
-              onClick={() =>
-                window.arcade.checkForUpdate().then((s) => {
-                  if (s.state === "unsupported") setError("Auto-update needs the installer build.");
-                  else if (s.state === "idle") setError("You're on the latest version.");
-                  else setError(null);
-                })
-              }
-            >
-              Check now
-            </button>
-          </div>
+          {note && <div className="stat">{note}</div>}
         </div>
       )}
     </div>

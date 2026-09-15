@@ -25,7 +25,16 @@ export async function makeApi(): Promise<ApiClient> {
 }
 
 export function errorMessage(err: unknown): string {
-  if (err instanceof ApiClientError) return err.message;
+  if (err instanceof ApiClientError) {
+    // Validation errors carry per-field details; "Request validation failed" alone says nothing.
+    if (Array.isArray(err.details) && err.details.length > 0) {
+      const parts = (err.details as { path?: string; message?: string }[])
+        .map((d) => (d.path ? `${d.path}: ${d.message ?? "invalid"}` : d.message))
+        .filter(Boolean);
+      if (parts.length) return `${err.message} — ${parts.join("; ")}`;
+    }
+    return err.message;
+  }
   if (err instanceof Error) return err.message;
   return "Something went wrong";
 }

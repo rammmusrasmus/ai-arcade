@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from "electron";
-import { getApiUrl, getWsUrl, isDefaultServer } from "./config.js";
+import { getApiUrl, getWsUrl } from "./config.js";
 import { readGameZip, zipGameFolder, type GameBundle } from "./bundle.js";
 import {
   installGame,
@@ -68,14 +68,8 @@ function notifyLibraryChanged() {
 ipcMain.handle("config:get", () => ({
   apiUrl: getApiUrl(),
   wsUrl: getWsUrl(),
-  isDefault: isDefaultServer(),
-  serverOverride: store.getServerUrl(),
+  appVersion: app.getVersion(),
 }));
-
-ipcMain.handle("config:setServerUrl", (_e, url: string | null) => {
-  store.setServerUrl(url);
-  return { apiUrl: getApiUrl(), wsUrl: getWsUrl(), isDefault: isDefaultServer() };
-});
 
 ipcMain.handle("auth:getToken", () => store.getToken());
 ipcMain.handle("auth:setToken", (_e, token: string | null) => {
