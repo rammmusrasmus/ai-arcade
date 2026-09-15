@@ -84,10 +84,22 @@
     },
     "mac": {
       "target": [
-        "dmg"
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
       ],
       "category": "public.app-category.games",
-      "artifactName": "AI-Arcade-${version}.${ext}"
+      "identity": "-",
+      "artifactName": "AI-Arcade-${version}-mac.${ext}"
     }
   }
 }

@@ -23,6 +23,7 @@ export type UpdateState =
   | { state: "checking" }
   | { state: "downloading"; version?: string; percent?: number }
   | { state: "ready"; version: string }
+  | { state: "manual"; version: string }
   | { state: "error"; message: string }
   | { state: "unsupported" };
 

@@ -85,7 +85,7 @@
   </div>
   <div class="others" id="others" hidden></div>
 
-  <section class="card">
+  <section class="card" id="steps-default">
     <h2>How to get started</h2>
     <ol>
       <li><b>Download</b> the installer and open it.</li>
@@ -94,6 +94,17 @@
       <li>Type the <b>6-digit code</b> we email you. Can’t find it? Check your spam folder.</li>
     </ol>
     <p class="note">The app updates itself — when a new version is out, it asks you to update when you open it.</p>
+  </section>
+
+  <section class="card" id="steps-mac" hidden>
+    <h2>How to get started on a Mac</h2>
+    <ol>
+      <li><b>Download</b> the .dmg, open it, and drag <b>AI Arcade</b> into <b>Applications</b>. It runs on both Apple Silicon and Intel Macs.</li>
+      <li>Open AI Arcade from Applications. The first time, macOS says it <b>can’t verify</b> the app, because it isn’t signed with an Apple developer certificate yet. Click <kbd>Done</kbd>.</li>
+      <li>Open <kbd>System Settings</kbd> → <kbd>Privacy &amp; Security</kbd>, scroll down, and click <kbd>Open Anyway</kbd> next to AI Arcade. Confirm with your password. You only do this once.</li>
+      <li>Click <kbd>Sign in</kbd> → <kbd>Register</kbd> and type the <b>6-digit code</b> we email you. Can’t find it? Check your spam folder.</li>
+    </ol>
+    <p class="note">When a new version is out, the app shows a <b>Download update</b> button. Download it and drag it into Applications to replace the old one.</p>
   </section>
 
   <div class="features">
@@ -111,6 +122,10 @@
     const ua = navigator.userAgent;
     const phone = /iPhone|iPad|iPod|Android/i.test(ua);
     const os = phone ? "windows" : /Mac/i.test(ua) ? "mac" : /Linux|X11/i.test(ua) ? "linux" : "windows";
+    if (os === "mac") {
+      document.getElementById("steps-default").hidden = true;
+      document.getElementById("steps-mac").hidden = false;
+    }
     const platforms = {
       windows: { label: "Download for Windows", match: (n) => /\.exe$/i.test(n) },
       mac: { label: "Download for macOS", match: (n) => /\.dmg$/i.test(n) },
@@ -150,7 +165,7 @@
           el.append(link);
           if (i < others.length - 1) el.append(" and ");
         });
-        el.append(". macOS builds aren’t signed yet and don’t update automatically.");
+        el.append(".");
       }
     } catch {
       document.getElementById("primary").href = releasesPage;

@@ -59,7 +59,7 @@ jobs:
       - name: Build installer
         shell: bash
         env:
-          # Server new installs connect to (users can still change it in-app).
+          # Server the app connects to.
           AI_ARCADE_API_URL: ${{ vars.PUBLIC_API_URL || 'https://arcade.xn--lntjekkeren-ggb.dk' }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: |
@@ -74,6 +74,7 @@ jobs:
           path: |
             apps/desktop/release/*.exe
             apps/desktop/release/*.dmg
+            apps/desktop/release/*-mac.zip
             apps/desktop/release/*.AppImage
             apps/desktop/release/*.blockmap
             apps/desktop/release/latest*.yml
@@ -97,6 +98,7 @@ jobs:
           files: |
             dist/*.exe
             dist/*.dmg
+            dist/*-mac.zip
             dist/*.AppImage
             dist/*.blockmap
             dist/latest*.yml

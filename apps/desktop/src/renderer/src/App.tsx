@@ -314,6 +314,33 @@ function UpdateBanner() {
     );
   }
 
+  if (s.state === "manual" && !dismissed) {
+    return (
+      <div
+        className="row"
+        style={{
+          justifyContent: "center",
+          gap: 12,
+          padding: "8px 14px",
+          background: "linear-gradient(90deg,#1c2b1f,#14231a)",
+          borderBottom: "1px solid #1f5a3d",
+          fontSize: 13,
+        }}
+      >
+        <span>
+          <b>AI Arcade {s.version}</b> is out. Download it, then drag it into Applications to replace this
+          version.
+        </span>
+        <button className="btn primary sm" onClick={() => void window.arcade.installUpdate()}>
+          Download update
+        </button>
+        <button className="btn ghost sm" onClick={() => setDismissed(true)}>
+          Later
+        </button>
+      </div>
+    );
+  }
+
   if (s.state === "downloading") {
     return (
       <div
@@ -808,6 +835,7 @@ function AboutControl({ version }: { version: string }) {
       if (s.state === "unsupported") setNote("Auto-update needs the installer build.");
       else if (s.state === "idle") setNote("You're on the latest version.");
       else if (s.state === "error") setNote(s.message);
+      else if (s.state === "manual") setNote(`Version ${s.version} is out — use "Download update" at the top.`);
       else setNote("A new version is on its way — you'll be asked to update.");
     });
   }
